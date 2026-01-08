@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+import 'package:path/path.dart' as p; // Menggunakan alias 'p' untuk menghindari konflik context
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 void main() => runApp(PuskarajaApp());
@@ -14,7 +14,7 @@ class PuskarajaApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF010A01), // Dark Green Background
+        scaffoldBackgroundColor: const Color(0xFF010A01),
         primaryColor: Colors.greenAccent,
         colorScheme: ColorScheme.dark(
           primary: Colors.greenAccent,
@@ -51,7 +51,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _refreshLocal() async {
     final dbPath = await getDatabasesPath();
-    final db = await openDatabase(join(dbPath, 'puska.db'), version: 1, onCreate: (db, v) {
+    final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 1, onCreate: (db, v) {
       db.execute("CREATE TABLE posts(id TEXT PRIMARY KEY, title TEXT, content TEXT)");
     });
     final List<Map<String, dynamic>> maps = await db.query('posts');
@@ -68,21 +68,22 @@ class _HomePageState extends State<HomePage> {
         final data = json.decode(res.body);
         final List entries = data['feed']['entry'] ?? [];
         final dbPath = await getDatabasesPath();
-        final db = await openDatabase(join(dbPath, 'puska.db'));
+        final db = await openDatabase(p.join(dbPath, 'puska.db'));
         
         await db.delete('posts'); 
         for (var e in entries) {
+          // Perbaikan: Menambahkan backslash \$t agar tidak dianggap variabel
           await db.insert('posts', {
-            'id': e['id']['$t'],
-            'title': e['title']['$t'],
-            'content': e['content']['$t'],
+            'id': e['id']['\$t'],
+            'title': e['title']['\$t'],
+            'content': e['content']['\$t'],
           });
         }
         _refreshLocal();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sinkronisasi Berhasil!")));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sinkronisasi Berhasil!")));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Sinkron. Cek koneksi.")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Sinkron. Cek koneksi.")));
     }
     setState(() => isLoading = false);
   }
@@ -91,13 +92,12 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        centerTitle: true, // Membuat logo berada tepat di tengah
+        centerTitle: true,
         backgroundColor: Colors.black,
         elevation: 0,
-        // JUDUL DIGANTI LOGO SAJA
         title: Image.asset(
           'assets/logo.png',
-          height: 40, // Ukuran pas untuk AppBar
+          height: 40,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => 
             Icon(Icons.menu_book, color: Colors.greenAccent),
@@ -164,7 +164,6 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
         ? _buildReader(widget.selected!) 
         : Column(
             children: [
-              // Kolom Pencarian yang Pintar
               Container(
                 padding: EdgeInsets.all(16),
                 child: TextField(
