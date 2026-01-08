@@ -1,20 +1,26 @@
 name: Flutter Build APK
 on:
   push:
-    branches: [ main ] # Jalankan setiap kali push ke branch main
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          
       - run: flutter pub get
-      - run: flutter build apk --release
+      
+      # Perintah ini akan memecah APK menjadi ukuran yang jauh lebih kecil
+      - run: flutter build apk --release --split-per-abi
+      
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          # Path diubah agar mengambil semua hasil split APK
+          path: build/app/outputs/flutter-apk/*.apk
