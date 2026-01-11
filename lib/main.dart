@@ -120,7 +120,7 @@ class _HomePageState extends State<HomePage> {
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Text(
-                  "Silahkan klik tombol sinkron (logo sinkron) diatas untuk download notasi atau update notasi terbaru",
+                  "Silahkan klik tombol sinkron (🔄) diatas untuk download notasi atau update notasi terbaru",
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.greenAccent.withOpacity(0.7), fontSize: 16),
                 ),
@@ -208,7 +208,7 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
     );
   }
 
-  Widget _buildReader(Article art) {
+Widget _buildReader(Article art) {
     return Column(
       children: [
         Container(
@@ -227,15 +227,27 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
             child: HtmlWidget(
               art.content,
               customStylesBuilder: (element) {
+                // SOLUSI SVG RESPONSIF & INVERT WARNA
                 if (element.localName == 'img' || element.localName == 'svg') {
                   return {
-                    'background-color': 'rgba(255, 255, 255, 0.8)', 
-                    'border-radius': '8px',
-                    'padding': '4px',
+                    'max-width': '100%', // Memaksa gambar tidak melebihi lebar layar
+                    'height': 'auto',    // Menjaga proporsi agar tidak gepeng
                     'display': 'block',
-                    'margin': 'auto',
+                    'margin': '10px auto',
+                    // Membalik warna: Hitam jadi Putih, tanpa latar belakang putih
+                    'filter': 'invert(100%) hue-rotate(180deg) brightness(1.5)',
                   };
                 }
+                
+                // CSS Tambahan untuk tabel agar responsif juga
+                if (element.localName == 'table') {
+                  return {
+                    'border': '1px solid #333',
+                    'width': '100%',
+                    'table-layout': 'fixed', // Mencegah tabel meluap ke samping
+                  };
+                }
+
                 return null;
               },
               textStyle: TextStyle(fontSize: 16, height: 1.6, color: Colors.white.withOpacity(0.9)),
@@ -245,4 +257,3 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
       ],
     );
   }
-}
