@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+// PENTING: Import file viewer yang baru
+import 'article_view.dart'; 
 
 void main() => runApp(PuskarajaApp());
 
@@ -29,7 +30,6 @@ class PuskarajaApp extends StatelessWidget {
 class Article {
   final String id, title, content;
   Article({required this.id, required this.title, required this.content});
-  Map<String, dynamic> toMap() => {'id': id, 'title': title, 'content': content};
 }
 
 class HomePage extends StatefulWidget {
@@ -93,38 +93,16 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         centerTitle: true,
         backgroundColor: Colors.black,
-        elevation: 0,
-        title: Image.asset(
-          'assets/logo.png',
-          height: 40,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => 
-            Icon(Icons.menu_book, color: Colors.greenAccent),
-        ),
+        title: Image.asset('assets/logo.png', height: 40, errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: Colors.greenAccent)),
         actions: [
           if (isLoading) 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-            ) 
+            Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
           else 
-            IconButton(
-              icon: Icon(Icons.sync, color: Colors.greenAccent), 
-              onPressed: syncData
-            )
+            IconButton(icon: Icon(Icons.sync, color: Colors.greenAccent), onPressed: syncData)
         ],
       ),
       body: allArticles.isEmpty && !isLoading
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Text(
-                  "Silahkan klik tombol sinkron (🔄) diatas untuk download notasi atau update notasi terbaru",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.greenAccent.withOpacity(0.7), fontSize: 16),
-                ),
-              ),
-            )
+          ? Center(child: Padding(padding: EdgeInsets.all(20), child: Text("Silahkan klik tombol sinkron diatas untuk download notasi terbaru", textAlign: TextAlign.center, style: TextStyle(color: Colors.greenAccent.withOpacity(0.7)))))
           : PageView(
               children: [
                 ArticlePanelView(
@@ -167,27 +145,25 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
         .toList();
 
     return Container(
-      decoration: BoxDecoration(
-        border: Border(right: BorderSide(color: Colors.greenAccent.withOpacity(0.05), width: 1))
-      ),
+      decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.white10))),
+      // DISINI KITA PANGGIL ArticleReader DARI FILE SEBELAH
       child: widget.selected != null 
-        ? _buildReader(widget.selected!) 
+        ? ArticleReader(
+            title: widget.selected!.title,
+            content: widget.selected!.content,
+            onClose: () => widget.onSelect(null),
+          )
         : Column(
             children: [
-              Container(
+              Padding(
                 padding: EdgeInsets.all(16),
                 child: TextField(
                   onChanged: (v) => setState(() => query = v),
                   decoration: InputDecoration(
                     hintText: "Cari di ${widget.label}...",
-                    prefixIcon: Icon(Icons.search, color: Colors.greenAccent, size: 20),
-                    filled: true, 
-                    fillColor: Colors.greenAccent.withOpacity(0.05),
-                    contentPadding: EdgeInsets.symmetric(vertical: 0),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none
-                    ),
+                    prefixIcon: Icon(Icons.search, color: Colors.greenAccent),
+                    filled: true, fillColor: Colors.white05,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   ),
                 ),
               ),
@@ -196,58 +172,13 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
                   itemCount: filtered.length,
                   separatorBuilder: (c, i) => Divider(color: Colors.white10, height: 1),
                   itemBuilder: (c, i) => ListTile(
-                    title: Text(filtered[i].title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                    trailing: Icon(Icons.arrow_forward_ios, size: 12, color: Colors.greenAccent.withOpacity(0.5)),
+                    title: Text(filtered[i].title, style: TextStyle(fontSize: 15)),
                     onTap: () => widget.onSelect(filtered[i]),
                   ),
                 ),
               ),
             ],
           ),
-    );
-  }
-
-  Widget _buildReader(Article art) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          color: Colors.greenAccent.withOpacity(0.05),
-          child: Row(
-            children: [
-              IconButton(icon: Icon(Icons.close, color: Colors.redAccent), onPressed: () => widget.onSelect(null)),
-              Expanded(child: Text(art.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
-            ],
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(20),
-            child: HtmlWidget(
-              art.content,
-              customStylesBuilder: (element) {
-                if (element.localName == 'img' || element.localName == 'svg') {
-                  return {
-                    'width': '100%',
-                    'height': 'auto',
-                    'display': 'block',
-                    'margin': '10px auto',
-                    'filter': 'invert(100%) brightness(1.8)',
-                  };
-                }
-                if (element.localName == 'table') {
-                  return {
-                    'border': '1px solid #333',
-                    'width': '100%',
-                  };
-                }
-                return null;
-              },
-              textStyle: TextStyle(fontSize: 16, height: 1.6, color: Colors.white.withOpacity(0.9)),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

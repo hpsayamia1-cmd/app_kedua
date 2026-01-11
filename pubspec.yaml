@@ -33,8 +33,7 @@ dependencies:
   http: ^1.1.0
   path: ^1.8.3
   sqflite: ^2.3.0
-  flutter_widget_from_html: ^0.10.5 # Tambahkan ini untuk render HTML
-
+  webview_flutter: ^4.9.0
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
