@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart' as p; // Menggunakan alias 'p' untuk menghindari konflik context
+import 'package:path/path.dart' as p;
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 void main() => runApp(PuskarajaApp());
@@ -63,7 +63,6 @@ class _HomePageState extends State<HomePage> {
   Future<void> syncData() async {
     setState(() => isLoading = true);
     try {
-      // URL sudah diganti ke sinsangnot.blogspot.com
       final res = await http.get(Uri.parse('https://sinsangnot.blogspot.com/feeds/posts/default?alt=json&max-results=500'));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -208,7 +207,7 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
     );
   }
 
-Widget _buildReader(Article art) {
+  Widget _buildReader(Article art) {
     return Column(
       children: [
         Container(
@@ -227,27 +226,21 @@ Widget _buildReader(Article art) {
             child: HtmlWidget(
               art.content,
               customStylesBuilder: (element) {
-                // SOLUSI SVG RESPONSIF & INVERT WARNA
                 if (element.localName == 'img' || element.localName == 'svg') {
                   return {
-                    'max-width': '100%', // Memaksa gambar tidak melebihi lebar layar
-                    'height': 'auto',    // Menjaga proporsi agar tidak gepeng
+                    'width': '100%',
+                    'height': 'auto',
                     'display': 'block',
                     'margin': '10px auto',
-                    // Membalik warna: Hitam jadi Putih, tanpa latar belakang putih
-                    'filter': 'invert(100%) hue-rotate(180deg) brightness(1.5)',
+                    'filter': 'invert(100%) brightness(1.8)',
                   };
                 }
-                
-                // CSS Tambahan untuk tabel agar responsif juga
                 if (element.localName == 'table') {
                   return {
                     'border': '1px solid #333',
                     'width': '100%',
-                    'table-layout': 'fixed', // Mencegah tabel meluap ke samping
                   };
                 }
-
                 return null;
               },
               textStyle: TextStyle(fontSize: 16, height: 1.6, color: Colors.white.withOpacity(0.9)),
@@ -257,3 +250,4 @@ Widget _buildReader(Article art) {
       ],
     );
   }
+}
