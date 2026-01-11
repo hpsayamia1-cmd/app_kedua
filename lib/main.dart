@@ -162,7 +162,7 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
                   decoration: InputDecoration(
                     hintText: "Cari di ${widget.label}...",
                     prefixIcon: Icon(Icons.search, color: Colors.greenAccent),
-                    filled: true, fillColor: Colors.white05,
+                    filled: true, fillColor: Colors.white10,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   ),
                 ),
