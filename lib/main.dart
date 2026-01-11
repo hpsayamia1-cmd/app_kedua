@@ -63,7 +63,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> syncData() async {
     setState(() => isLoading = true);
     try {
-      final res = await http.get(Uri.parse('https://puskaraja.blogspot.com/feeds/posts/default?alt=json&max-results=500'));
+      // URL sudah diganti ke sinsangnot.blogspot.com
+      final res = await http.get(Uri.parse('https://sinsangnot.blogspot.com/feeds/posts/default?alt=json&max-results=500'));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         final List entries = data['feed']['entry'] ?? [];
@@ -72,7 +73,6 @@ class _HomePageState extends State<HomePage> {
         
         await db.delete('posts'); 
         for (var e in entries) {
-          // Perbaikan: Menambahkan backslash \$t agar tidak dianggap variabel
           await db.insert('posts', {
             'id': e['id']['\$t'],
             'title': e['title']['\$t'],
@@ -115,22 +115,33 @@ class _HomePageState extends State<HomePage> {
             )
         ],
       ),
-      body: PageView(
-        children: [
-          ArticlePanelView(
-            articles: allArticles, 
-            selected: leftSelected, 
-            onSelect: (a) => setState(() => leftSelected = a),
-            label: "PANEL KIRI",
-          ),
-          ArticlePanelView(
-            articles: allArticles, 
-            selected: rightSelected, 
-            onSelect: (a) => setState(() => rightSelected = a),
-            label: "PANEL KANAN",
-          ),
-        ],
-      ),
+      body: allArticles.isEmpty && !isLoading
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Text(
+                  "Silahkan klik tombol sinkron (logo sinkron) diatas untuk download notasi atau update notasi terbaru",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.greenAccent.withOpacity(0.7), fontSize: 16),
+                ),
+              ),
+            )
+          : PageView(
+              children: [
+                ArticlePanelView(
+                  articles: allArticles, 
+                  selected: leftSelected, 
+                  onSelect: (a) => setState(() => leftSelected = a),
+                  label: "PANEL KIRI",
+                ),
+                ArticlePanelView(
+                  articles: allArticles, 
+                  selected: rightSelected, 
+                  onSelect: (a) => setState(() => rightSelected = a),
+                  label: "PANEL KANAN",
+                ),
+              ],
+            ),
     );
   }
 }
@@ -215,6 +226,18 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
             padding: EdgeInsets.all(20),
             child: HtmlWidget(
               art.content,
+              customStylesBuilder: (element) {
+                if (element.localName == 'img' || element.localName == 'svg') {
+                  return {
+                    'background-color': 'rgba(255, 255, 255, 0.8)', 
+                    'border-radius': '8px',
+                    'padding': '4px',
+                    'display': 'block',
+                    'margin': 'auto',
+                  };
+                }
+                return null;
+              },
               textStyle: TextStyle(fontSize: 16, height: 1.6, color: Colors.white.withOpacity(0.9)),
             ),
           ),
