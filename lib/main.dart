@@ -137,6 +137,16 @@ class ArticlePanelView extends StatefulWidget {
 
 class _ArticlePanelViewState extends State<ArticlePanelView> {
   String query = "";
+  final TextEditingController _searchController = TextEditingController();
+
+  // Fungsi untuk menutup artikel sekaligus reset pencarian
+  void _closeAndReset() {
+    setState(() {
+      query = "";
+      _searchController.clear();
+    });
+    widget.onSelect(null);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,41 +154,53 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
         .where((a) => a.title.toLowerCase().contains(query.toLowerCase()))
         .toList();
 
-    return Container(
-      decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.white10))),
-      // DISINI KITA PANGGIL ArticleReader DARI FILE SEBELAH
-      child: widget.selected != null 
-        ? ArticleReader(
-            title: widget.selected!.title,
-            content: widget.selected!.content,
-            onClose: () => widget.onSelect(null),
-          )
-        : Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.all(16),
-                child: TextField(
-                  onChanged: (v) => setState(() => query = v),
-                  decoration: InputDecoration(
-                    hintText: "Cari di ${widget.label}...",
-                    prefixIcon: Icon(Icons.search, color: Colors.greenAccent),
-                    filled: true, fillColor: Colors.white10,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    // Membungkus dengan PopScope agar tombol back HP tidak langsung keluar aplikasi
+    return PopScope(
+      canPop: widget.selected == null, // Jika artikel terbuka, jangan keluar aplikasi
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _closeAndReset();
+      },
+      child: Container(
+        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.white10))),
+        child: widget.selected != null 
+          ? ArticleReader(
+              title: widget.selected!.title,
+              content: widget.selected!.content,
+              onClose: _closeAndReset, // Gunakan fungsi reset
+            )
+          : Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.all(16),
+                  child: TextField(
+                    controller: _searchController, // Tambahkan controller
+                    onChanged: (v) => setState(() => query = v),
+                    decoration: InputDecoration(
+                      hintText: "Cari di ${widget.label}...",
+                      prefixIcon: Icon(Icons.search, color: Colors.greenAccent),
+                      suffixIcon: query.isNotEmpty 
+                        ? IconButton(icon: Icon(Icons.clear), onPressed: () {
+                            setState(() { query = ""; _searchController.clear(); });
+                          }) 
+                        : null,
+                      filled: true, fillColor: Colors.white10,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (c, i) => Divider(color: Colors.white10, height: 1),
-                  itemBuilder: (c, i) => ListTile(
-                    title: Text(filtered[i].title, style: TextStyle(fontSize: 15)),
-                    onTap: () => widget.onSelect(filtered[i]),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: filtered.length,
+                    separatorBuilder: (c, i) => Divider(color: Colors.white10, height: 1),
+                    itemBuilder: (c, i) => ListTile(
+                      title: Text(filtered[i].title, style: TextStyle(fontSize: 15)),
+                      onTap: () => widget.onSelect(filtered[i]),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+      ),
     );
   }
 }
