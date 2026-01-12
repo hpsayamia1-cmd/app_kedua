@@ -21,28 +21,61 @@ class _ArticleReaderState extends State<ArticleReader> {
   void initState() {
     super.initState();
     controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF010A01))
-      ..loadHtmlString(_buildHtml());
+      ..setJavaScriptMode(JavaScriptMode.unrestricted);
+    // Background color awal tetap diatur, tapi akan diupdate di build
   }
 
-  String _buildHtml() {
+  // Fungsi buildHtml sekarang menerima context untuk cek tema
+  String _buildHtml(BuildContext context) {
+    // Deteksi apakah sedang Mode Gelap atau Terang
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Variabel warna dinamis
+    String bgColor = isDark ? "#010A01" : "#F5F5F5";
+    String textColor = isDark ? "#eeeeee" : "#222222";
+    String cardBg = isDark ? "#08230dff" : "#FFF9C4"; // Hijau gelap vs Kuning krem
+    String cardText = isDark ? "#e4dcdcff" : "#333333";
+    String imgFilter = isDark ? "invert(1) brightness(1.5)" : "none";
+    String accentColor = isDark ? "#69F0AE" : "#2E7D32";
+
     return """
 <!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
-  body { background: #010A01; color: #eeeeee; font-family: sans-serif; padding: 15px; line-height: 1.6; }
-  img, svg { max-width: 100% !important; height: auto !important; filter: invert(1) brightness(1.5); margin: 10px 0; }
+  body { 
+    background: $bgColor; 
+    color: $textColor; 
+    font-family: sans-serif; 
+    padding: 15px; 
+    line-height: 1.6; 
+    transition: background 0.3s, color 0.3s;
+  }
+  h2 { color: $accentColor; }
+  img, svg { 
+    max-width: 100% !important; 
+    height: auto !important; 
+    filter: $imgFilter; 
+    margin: 10px 0; 
+  }
   .table-responsive, .table-responsive-2 { overflow-x: auto; margin-bottom: 15px; }
   table { width: 100%; border-collapse: collapse; color: #000; }
   td, th { border: 1px solid #bbb; padding: 8px; background: #f3f5ef; }
-  .lirik { border: #d37f0a 3px solid; border-radius: 10px; background: #08230dff; color: #e4dcdcff; padding: 10px; white-space: pre-wrap; text-align: center; }
+  
+  .lirik { 
+    border: #d37f0a 3px solid; 
+    border-radius: 10px; 
+    background: $cardBg; 
+    color: $cardText; 
+    padding: 10px; 
+    white-space: pre-wrap; 
+    text-align: center; 
+  }
 </style>
 </head>
 <body>
-  <h2 style="color: #69F0AE;">${widget.title}</h2>
+  <h2>${widget.title}</h2>
   ${widget.content}
 </body>
 </html>
@@ -51,21 +84,36 @@ class _ArticleReaderState extends State<ArticleReader> {
 
   @override
   Widget build(BuildContext context) {
+    // Update isi WebView setiap kali widget build (saat tema berubah)
+    controller.loadHtmlString(_buildHtml(context));
+    
     return Column(
       children: [
         Container(
-          color: Colors.black,
+          // Warna header reader mengikuti tema aplikasi
+          color: Theme.of(context).appBarTheme.backgroundColor,
           child: Row(
             children: [
-              IconButton(icon: Icon(Icons.close, color: Colors.redAccent), onPressed: widget.onClose),
-              Expanded(child: Text(widget.title, style: TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.redAccent), 
+                onPressed: widget.onClose
+              ),
+              Expanded(
+                child: Text(
+                  widget.title, 
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black
+                  ), 
+                  overflow: TextOverflow.ellipsis
+                )
+              ),
             ],
           ),
         ),
         Expanded(
           child: WebViewWidget(
             controller: controller,
-            // PENTING: Mengizinkan scroll di dalam PageView
             gestureRecognizers: {
               Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
             },

@@ -3,26 +3,48 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
-// PENTING: Import file viewer yang baru
 import 'article_view.dart'; 
 
 void main() => runApp(PuskarajaApp());
 
-class PuskarajaApp extends StatelessWidget {
+// Mengubah menjadi StatefulWidget untuk menyimpan status Tema
+class PuskarajaApp extends StatefulWidget {
+  @override
+  State<PuskarajaApp> createState() => _PuskarajaAppState();
+}
+
+class _PuskarajaAppState extends State<PuskarajaApp> {
+  // 1. Variabel status tema (default: dark)
+  ThemeMode _themeMode = ThemeMode.dark;
+
+  void _toggleTheme() {
+    setState(() {
+      _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      themeMode: _themeMode,
+      // Konfigurasi Tema Terang
       theme: ThemeData(
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+        primaryColor: Colors.green,
+        appBarTheme: const AppBarTheme(backgroundColor: Colors.white, foregroundColor: Colors.black),
+        cardColor: Colors.white,
+      ),
+      // Konfigurasi Tema Gelap (Warna Hijau Gelap kamu tetap di sini)
+      darkTheme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF010A01),
         primaryColor: Colors.greenAccent,
-        colorScheme: ColorScheme.dark(
-          primary: Colors.greenAccent,
-          secondary: Colors.greenAccent[700]!,
-        ),
+        appBarTheme: const AppBarTheme(backgroundColor: Colors.black, foregroundColor: Colors.white),
+        cardColor: const Color(0xFF0A140A),
       ),
-      home: HomePage(),
+      home: HomePage(toggleTheme: _toggleTheme, isDarkMode: _themeMode == ThemeMode.dark),
     );
   }
 }
@@ -33,6 +55,10 @@ class Article {
 }
 
 class HomePage extends StatefulWidget {
+  final VoidCallback toggleTheme;
+  final bool isDarkMode;
+  HomePage({required this.toggleTheme, required this.isDarkMode});
+
   @override
   _HomePageState createState() => _HomePageState();
 }
@@ -79,10 +105,10 @@ class _HomePageState extends State<HomePage> {
           });
         }
         _refreshLocal();
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sinkronisasi Berhasil!")));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sinkronisasi Berhasil!")));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Sinkron. Cek koneksi.")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Sinkron. Cek koneksi.")));
     }
     setState(() => isLoading = false);
   }
@@ -92,17 +118,22 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        backgroundColor: Colors.black,
-        title: Image.asset('assets/logo.png', height: 40, errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: Colors.greenAccent)),
+        elevation: 0,
+        // 2. Tombol pengatur tema di sebelah kiri (leading)
+        leading: IconButton(
+          icon: Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+          onPressed: widget.toggleTheme,
+        ),
+        title: Image.asset('assets/logo.png', height: 40, errorBuilder: (c, e, s) => const Icon(Icons.menu_book, color: Colors.greenAccent)),
         actions: [
           if (isLoading) 
-            Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
+            const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
           else 
-            IconButton(icon: Icon(Icons.sync, color: Colors.greenAccent), onPressed: syncData)
+            IconButton(icon: const Icon(Icons.sync, color: Colors.greenAccent), onPressed: syncData)
         ],
       ),
       body: allArticles.isEmpty && !isLoading
-          ? Center(child: Padding(padding: EdgeInsets.all(20), child: Text("Silahkan klik tombol sinkron diatas untuk download notasi terbaru", textAlign: TextAlign.center, style: TextStyle(color: Colors.greenAccent.withOpacity(0.7)))))
+          ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Text("Silahkan klik tombol sinkron diatas untuk download notasi terbaru", textAlign: TextAlign.center, style: TextStyle(color: Colors.greenAccent.withOpacity(0.7)))))
           : PageView(
               children: [
                 ArticlePanelView(
@@ -139,7 +170,6 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
   String query = "";
   final TextEditingController _searchController = TextEditingController();
 
-  // Fungsi untuk menutup artikel sekaligus reset pencarian
   void _closeAndReset() {
     setState(() {
       query = "";
@@ -154,47 +184,59 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
         .where((a) => a.title.toLowerCase().contains(query.toLowerCase()))
         .toList();
 
-    // Membungkus dengan PopScope agar tombol back HP tidak langsung keluar aplikasi
     return PopScope(
-      canPop: widget.selected == null, // Jika artikel terbuka, jangan keluar aplikasi
+      canPop: widget.selected == null,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _closeAndReset();
       },
       child: Container(
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.white10))),
+        decoration: BoxDecoration(border: Border(right: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)))),
         child: widget.selected != null 
           ? ArticleReader(
               title: widget.selected!.title,
               content: widget.selected!.content,
-              onClose: _closeAndReset, // Gunakan fungsi reset
+              onClose: _closeAndReset,
             )
           : Column(
               children: [
                 Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   child: TextField(
-                    controller: _searchController, // Tambahkan controller
+                    controller: _searchController,
                     onChanged: (v) => setState(() => query = v),
                     decoration: InputDecoration(
                       hintText: "Cari di ${widget.label}...",
-                      prefixIcon: Icon(Icons.search, color: Colors.greenAccent),
+                      prefixIcon: const Icon(Icons.search, color: Colors.greenAccent),
                       suffixIcon: query.isNotEmpty 
-                        ? IconButton(icon: Icon(Icons.clear), onPressed: () {
+                        ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
                             setState(() { query = ""; _searchController.clear(); });
                           }) 
                         : null,
-                      filled: true, fillColor: Colors.white10,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      filled: true, 
+                      fillColor: Theme.of(context).cardColor,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
                     ),
                   ),
                 ),
                 Expanded(
-                  child: ListView.separated(
+                  child: ListView.builder( // Menggunakan builder untuk efisiensi Card
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: filtered.length,
-                    separatorBuilder: (c, i) => Divider(color: Colors.white10, height: 1),
-                    itemBuilder: (c, i) => ListTile(
-                      title: Text(filtered[i].title, style: TextStyle(fontSize: 15)),
-                      onTap: () => widget.onSelect(filtered[i]),
+                    itemBuilder: (c, i) => Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      // 3. Membungkus Daftar dengan Box ber-radius (Card)
+                      child: Material(
+                        elevation: 2,
+                        shadowColor: Colors.black.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(15),
+                        color: Theme.of(context).cardColor,
+                        child: ListTile(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          title: Text(filtered[i].title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                          trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.greenAccent),
+                          onTap: () => widget.onSelect(filtered[i]),
+                        ),
+                      ),
                     ),
                   ),
                 ),
