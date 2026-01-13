@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
-import 'package:shared_preferences/shared_preferences.dart'; // Library baru
+import 'package:shared_preferences/shared_preferences.dart';
 import 'article_view.dart'; 
 
 void main() => runApp(PuskarajaApp());
@@ -14,25 +14,22 @@ class PuskarajaApp extends StatefulWidget {
 }
 
 class _PuskarajaAppState extends State<PuskarajaApp> {
-  // Default tema terang sesuai permintaan
   ThemeMode _themeMode = ThemeMode.light;
 
   @override
   void initState() {
     super.initState();
-    _loadThemeSettings(); // Muat tema yang disimpan saat aplikasi dibuka
+    _loadThemeSettings();
   }
 
-  // Fungsi untuk memuat pengaturan tema dari memori HP
   Future<void> _loadThemeSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      bool isDark = prefs.getBool('isDarkMode') ?? false; // Default false (terang)
+      bool isDark = prefs.getBool('isDarkMode') ?? false;
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
   }
 
-  // Fungsi untuk ganti tema dan menyimpannya
   Future<void> _toggleTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -53,7 +50,7 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
       themeMode: _themeMode,
       theme: ThemeData(
         brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+        scaffoldBackgroundColor: const Color(0xFFF8F9FA),
         primaryColor: Colors.green,
         appBarTheme: const AppBarTheme(backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 1),
         cardColor: Colors.white,
@@ -70,7 +67,6 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
   }
 }
 
-// ... (Class Article tetap sama) ...
 class Article {
   final String id, title, content;
   Article({required this.id, required this.title, required this.content});
@@ -90,6 +86,10 @@ class _HomePageState extends State<HomePage> {
   bool isLoading = false;
   Article? leftSelected;
   Article? rightSelected;
+  
+  // Controller untuk memantau perpindahan halaman
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
 
   @override
   void initState() {
@@ -132,64 +132,121 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    Color accentColor = widget.isDarkMode ? Colors.greenAccent : Colors.green[700]!;
+    Color accentColor = widget.isDarkMode ? Colors.greenAccent : Colors.green[800]!;
+    Color btnBg = widget.isDarkMode ? Colors.white10 : Colors.grey[200]!;
 
     return Scaffold(
       appBar: AppBar(
-        // Bagian Leading: Label Tema + Icon
-        leadingWidth: 110,
-        leading: InkWell(
-          onTap: widget.toggleTheme,
-          child: Row(
-            children: [
-              const SizedBox(width: 8),
-              Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode, size: 20, color: accentColor),
-              const SizedBox(width: 4),
-              Text("Tema", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: accentColor)),
-            ],
+        toolbarHeight: 70,
+        leadingWidth: 100,
+        // Tombol Tema Modern
+        leading: Center(
+          child: InkWell(
+            onTap: widget.toggleTheme,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(color: btnBg, borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode, size: 18, color: accentColor),
+                  const SizedBox(width: 4),
+                  Text("Tema", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor)),
+                ],
+              ),
+            ),
           ),
         ),
-        title: Image.asset('assets/logo.png', height: 35, errorBuilder: (c, e, s) => Text("PUSKARAJA", style: TextStyle(fontSize: 16, color: accentColor))),
+        title: Image.asset('assets/logo.png', height: 35, errorBuilder: (c, e, s) => Text("PUSKARAJA", style: TextStyle(fontSize: 16, color: accentColor, fontWeight: FontWeight.bold))),
         actions: [
           if (isLoading) 
             const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
           else 
-            // Bagian Action: Label Sinkronisasi + Icon
-            InkWell(
-              onTap: syncData,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Row(
-                  children: [
-                    Text("Sinkronisasi", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: accentColor)),
-                    const SizedBox(width: 4),
-                    Icon(Icons.sync, color: accentColor, size: 20),
-                  ],
+            // Tombol Sinkronisasi Modern
+            Center(
+              child: InkWell(
+                onTap: syncData,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(color: btnBg, borderRadius: BorderRadius.circular(10)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text("Sinkronisasi", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor)),
+                      const SizedBox(width: 4),
+                      Icon(Icons.sync, color: accentColor, size: 18),
+                    ],
+                  ),
                 ),
               ),
             )
         ],
       ),
       body: allArticles.isEmpty && !isLoading
-          ? Center(child: Text("Klik sinkron untuk data terbaru", style: TextStyle(color: Colors.grey)))
-          : PageView(
+          ? const Center(child: Text("Klik sinkron untuk data terbaru"))
+          : Column(
               children: [
-                ArticlePanelView(articles: allArticles, selected: leftSelected, onSelect: (a) => setState(() => leftSelected = a), label: "PANEL KIRI"),
-                ArticlePanelView(articles: allArticles, selected: rightSelected, onSelect: (a) => setState(() => rightSelected = a), label: "PANEL KANAN"),
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    onPageChanged: (int page) => setState(() => _currentPage = page),
+                    children: [
+                      ArticlePanelView(articles: allArticles, selected: leftSelected, onSelect: (a) => setState(() => leftSelected = a)),
+                      ArticlePanelView(articles: allArticles, selected: rightSelected, onSelect: (a) => setState(() => rightSelected = a)),
+                    ],
+                  ),
+                ),
+                // INDIKATOR TAB BAWAH MODERN
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).appBarTheme.backgroundColor,
+                    border: Border(top: BorderSide(color: Colors.black.withOpacity(0.05)))
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildTabIndicator(0, "PANEL 1", accentColor),
+                      const SizedBox(width: 20),
+                      _buildTabIndicator(1, "PANEL 2", accentColor),
+                    ],
+                  ),
+                )
               ],
             ),
     );
   }
+
+  Widget _buildTabIndicator(int index, String label, Color accentColor) {
+    bool isActive = _currentPage == index;
+    return GestureDetector(
+      onTap: () => _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? accentColor : Colors.grey)),
+          const SizedBox(height: 4),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: 4,
+            width: isActive ? 40 : 10,
+            decoration: BoxDecoration(color: isActive ? accentColor : Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
+          )
+        ],
+      ),
+    );
+  }
 }
 
-// ... (Class ArticlePanelView sisanya tetap sama dengan sebelumnya) ...
 class ArticlePanelView extends StatefulWidget {
   final List<Article> articles;
   final Article? selected;
   final Function(Article?) onSelect;
-  final String label;
 
-  ArticlePanelView({required this.articles, required this.selected, required this.onSelect, required this.label});
+  ArticlePanelView({required this.articles, required this.selected, required this.onSelect});
 
   @override
   _ArticlePanelViewState createState() => _ArticlePanelViewState();
@@ -213,9 +270,7 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
     return PopScope(
       canPop: widget.selected == null,
       onPopInvokedWithResult: (didPop, result) { if (!didPop) _closeAndReset(); },
-      child: Container(
-        decoration: BoxDecoration(border: Border(right: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)))),
-        child: widget.selected != null 
+      child: widget.selected != null 
           ? ArticleReader(title: widget.selected!.title, content: widget.selected!.content, onClose: _closeAndReset)
           : Column(
               children: [
@@ -225,11 +280,12 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
                     controller: _searchController,
                     onChanged: (v) => setState(() => query = v),
                     decoration: InputDecoration(
-                      hintText: "Cari di ${widget.label}...",
-                      prefixIcon: const Icon(Icons.search),
+                      hintText: "Cari Gending...", // Teks pencarian disederhanakan
+                      prefixIcon: const Icon(Icons.search, size: 20),
                       filled: true,
                       fillColor: Theme.of(context).cardColor,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
                   ),
                 ),
@@ -238,14 +294,15 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     itemCount: filtered.length,
                     itemBuilder: (c, i) => Container(
-                      margin: const EdgeInsets.only(bottom: 10),
+                      margin: const EdgeInsets.only(bottom: 8),
                       child: Material(
                         elevation: 1,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         color: Theme.of(context).cardColor,
                         child: ListTile(
+                          dense: true,
                           title: Text(filtered[i].title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                          trailing: const Icon(Icons.chevron_right, color: Colors.greenAccent, size: 18),
+                          trailing: const Icon(Icons.chevron_right, color: Colors.greenAccent, size: 16),
                           onTap: () => widget.onSelect(filtered[i]),
                         ),
                       ),
@@ -254,7 +311,6 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
                 ),
               ],
             ),
-      ),
     );
   }
 }

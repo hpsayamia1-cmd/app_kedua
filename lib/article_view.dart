@@ -33,7 +33,7 @@ class _ArticleReaderState extends State<ArticleReader> {
     // Variabel warna dinamis
     String bgColor = isDark ? "#010A01" : "#F5F5F5";
     String textColor = isDark ? "#eeeeee" : "#222222";
-    String cardBg = isDark ? "#08230dff" : "#FFF9C4"; // Hijau gelap vs Kuning krem
+    String cardBg = isDark ? "#08230dff" : "#dfe3e4ff"; // Hijau gelap vs Kuning krem
     String cardText = isDark ? "#e4dcdcff" : "#333333";
     String imgFilter = isDark ? "invert(1) brightness(1.5)" : "none";
     String accentColor = isDark ? "#69F0AE" : "#2E7D32";
