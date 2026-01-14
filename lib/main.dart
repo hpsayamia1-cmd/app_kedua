@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart'; // Import baru
 import 'article_view.dart'; 
 
 void main() => runApp(PuskarajaApp());
@@ -87,7 +88,6 @@ class _HomePageState extends State<HomePage> {
   Article? leftSelected;
   Article? rightSelected;
   
-  // Controller untuk memantau perpindahan halaman
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -95,6 +95,44 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _refreshLocal();
+  }
+
+  // Fungsi untuk membuka URL (Blog/Donasi)
+  Future<void> _launchURL(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      throw 'Could not launch $url';
+    }
+  }
+
+// Dialog Tentang Kami yang Terarah ke Blog
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text("Tentang Kami"),
+        content: const Text(
+          "Sinsangnot adalah aplikasi perpustakaan notasi gending Jawa yang praktis dan portabel. "
+          "Dibuat untuk memudahkan akses notasi secara cepat dan offline.\n\n"
+          "Seluruh data bersumber dari sinsangnot.blogspot.com. Jika ada saran, kritik, atau pertanyaan, "
+          "silakan hubungi kami melalui kolom komentar atau kontak yang tersedia di blog resmi kami."
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context), 
+            child: const Text("Tutup", style: TextStyle(color: Colors.grey))
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _launchURL("https://sinsangnot.blogspot.com");
+            }, 
+            child: const Text("Kunjungi Blog", style: TextStyle(fontWeight: FontWeight.bold))
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _refreshLocal() async {
@@ -138,51 +176,62 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 70,
-        leadingWidth: 100,
-        // Tombol Tema Modern
-        leading: Center(
-          child: InkWell(
-            onTap: widget.toggleTheme,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(color: btnBg, borderRadius: BorderRadius.circular(10)),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode, size: 18, color: accentColor),
-                  const SizedBox(width: 4),
-                  Text("Tema", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor)),
-                ],
-              ),
-            ),
-          ),
+        // 1. LOGO PINDAH KE POJOK KIRI
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Image.asset('assets/logo.png', errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: accentColor)),
         ),
-        title: Image.asset('assets/logo.png', height: 35, errorBuilder: (c, e, s) => Text("PUSKARAJA", style: TextStyle(fontSize: 16, color: accentColor, fontWeight: FontWeight.bold))),
+        title: Text("PUSKARAJA", style: TextStyle(fontSize: 18, color: accentColor, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
         actions: [
+          // 2. TOMBOL SINKRONISASI DI SAMPING SETTINGS
           if (isLoading) 
             const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
           else 
-            // Tombol Sinkronisasi Modern
-            Center(
-              child: InkWell(
-                onTap: syncData,
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(color: btnBg, borderRadius: BorderRadius.circular(10)),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text("Sinkronisasi", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor)),
-                      const SizedBox(width: 4),
-                      Icon(Icons.sync, color: accentColor, size: 18),
-                    ],
-                  ),
+            IconButton(
+              tooltip: "Sinkronisasi",
+              icon: Icon(Icons.sync, color: accentColor),
+              onPressed: syncData,
+            ),
+
+          // 3. MENU SETTINGS (POPUP MENU)
+          PopupMenuButton<int>(
+            icon: Icon(Icons.settings, color: accentColor),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (item) {
+              switch (item) {
+                case 0: widget.toggleTheme(); break;
+                case 1: _showAboutDialog(); break;
+                case 2: _launchURL("https://sinsangnot.blogspot.com"); break;
+                case 3: _launchURL("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526"); break; // Ganti link donasi kamu
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 0,
+                child: Row(
+                  children: [
+                    Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode, size: 20, color: Colors.amber),
+                    const SizedBox(width: 12),
+                    Text(widget.isDarkMode ? "Mode Terang" : "Mode Gelap"),
+                  ],
                 ),
               ),
-            )
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 1,
+                child: Row(children: [Icon(Icons.info_outline, size: 20), SizedBox(width: 12), Text("Tentang Kami")]),
+              ),
+              const PopupMenuItem(
+                value: 2,
+                child: Row(children: [Icon(Icons.language, size: 20), SizedBox(width: 12), Text("Kunjungi Blog")]),
+              ),
+              const PopupMenuItem(
+                value: 3,
+                child: Row(children: [Icon(Icons.favorite, size: 20, color: Colors.redAccent), SizedBox(width: 12), Text("Donasi")]),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: allArticles.isEmpty && !isLoading
@@ -199,7 +248,6 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
-                // INDIKATOR TAB BAWAH MODERN
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
@@ -241,6 +289,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+// Class ArticlePanelView tetap menggunakan logika pencarian Anda yang sudah jalan
 class ArticlePanelView extends StatefulWidget {
   final List<Article> articles;
   final Article? selected;
@@ -280,7 +329,7 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
                     controller: _searchController,
                     onChanged: (v) => setState(() => query = v),
                     decoration: InputDecoration(
-                      hintText: "Cari Gending...", // Teks pencarian disederhanakan
+                      hintText: "Cari Gending...", 
                       prefixIcon: const Icon(Icons.search, size: 20),
                       filled: true,
                       fillColor: Theme.of(context).cardColor,
