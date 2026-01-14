@@ -171,19 +171,25 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     Color accentColor = widget.isDarkMode ? Colors.greenAccent : Colors.green[800]!;
+    // ignore: unused_local_variable
     Color btnBg = widget.isDarkMode ? Colors.white10 : Colors.grey[200]!;
 
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 70,
-        // 1. LOGO PINDAH KE POJOK KIRI
+        centerTitle: false,
+        // LOGO DI KIRI - LEBAR DITAMBAH AGAR LOGO BISA LEBIH BESAR
+        leadingWidth: 100, 
         leading: Padding(
           padding: const EdgeInsets.only(left: 12),
-          child: Image.asset('assets/logo.png', errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: accentColor)),
+          child: Image.asset(
+            'assets/logo.png', 
+            fit: BoxFit.contain, // Memastikan logo besar dan proporsional
+            errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: accentColor, size: 30)
+          ),
         ),
-        title: Text("PUSKARAJA", style: TextStyle(fontSize: 18, color: accentColor, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        title: null, // TEKS PUSKARAJA DIHAPUS SESUAI PERMINTAAN
         actions: [
-          // 2. TOMBOL SINKRONISASI DI SAMPING SETTINGS
           if (isLoading) 
             const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
           else 
@@ -193,7 +199,6 @@ class _HomePageState extends State<HomePage> {
               onPressed: syncData,
             ),
 
-          // 3. MENU SETTINGS (POPUP MENU)
           PopupMenuButton<int>(
             icon: Icon(Icons.settings, color: accentColor),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -202,7 +207,7 @@ class _HomePageState extends State<HomePage> {
                 case 0: widget.toggleTheme(); break;
                 case 1: _showAboutDialog(); break;
                 case 2: _launchURL("https://sinsangnot.blogspot.com"); break;
-                case 3: _launchURL("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526"); break; // Ganti link donasi kamu
+                case 3: _launchURL("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526"); break; 
               }
             },
             itemBuilder: (context) => [
@@ -241,6 +246,8 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: PageView(
                     controller: _pageController,
+                    // PHYSICS DITAMBAHKAN AGAR TRANSISI SMOOTH & ANTI-GLITCH
+                    physics: const BouncingScrollPhysics(),
                     onPageChanged: (int page) => setState(() => _currentPage = page),
                     children: [
                       ArticlePanelView(articles: allArticles, selected: leftSelected, onSelect: (a) => setState(() => leftSelected = a)),
@@ -289,7 +296,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// Class ArticlePanelView tetap menggunakan logika pencarian Anda yang sudah jalan
 class ArticlePanelView extends StatefulWidget {
   final List<Article> articles;
   final Article? selected;
