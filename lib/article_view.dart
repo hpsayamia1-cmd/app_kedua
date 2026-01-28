@@ -25,12 +25,11 @@ class ArticleReader extends StatelessWidget {
       ),
       body: SelectionArea(
         child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(), // Lebih ringan untuk render banyak objek
+          physics: const ClampingScrollPhysics(),
           padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Judul dipastikan terlihat
               Text(
                 title,
                 style: TextStyle(
@@ -43,28 +42,26 @@ class ArticleReader extends StatelessWidget {
 
               HtmlWidget(
                 content,
-                // KUNCI PERBAIKAN: Tangani elemen SVG secara manual
                 customWidgetBuilder: (element) {
                   if (element.localName == 'svg') {
-                    // Ambil string kode SVG-nya
                     String svgCode = element.outerHtml;
 
                     return Container(
                       width: double.infinity,
                       margin: const EdgeInsets.symmetric(vertical: 10),
-                      // Bungkus dengan ColorFiltered agar PASTI berubah warna
                       child: ColorFiltered(
                         colorFilter: isDarkMode
                             ? const ColorFilter.matrix([
-                                -1, 0, 0, 0, 255, // Invert Merah
-                                0, -1, 0, 0, 255, // Invert Hijau
-                                0, 0, -1, 0, 255, // Invert Biru
-                                0, 0, 0, 1, 0,    // Alpha tetap
+                                -1, 0, 0, 0, 255, 
+                                0, -1, 0, 0, 255, 
+                                0, 0, -1, 0, 255, 
+                                0, 0, 0, 1, 0,    
                               ])
                             : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-                        // PAKSA AGAR TIDAK MELAR KE BAWAH
-                        child: AspectRatio(
-                          aspectRatio: _getSvgAspectRatio(svgCode), // Hitung rasio asli
+                        // PERBAIKAN DI SINI: Menggunakan FittedBox agar tidak gepeng
+                        child: FittedBox(
+                          fit: BoxFit.contain, // Menjaga proporsi asli gambar
+                          alignment: Alignment.center,
                           child: HtmlWidget(svgCode),
                         ),
                       ),
@@ -73,7 +70,6 @@ class ArticleReader extends StatelessWidget {
                   return null;
                 },
                 customStylesBuilder: (element) {
-                  // Styling Lirik
                   if (element.classes.contains('lirik') || element.localName == 'pre') {
                     return {
                       'font-family': 'Georgia, serif',
@@ -97,21 +93,5 @@ class ArticleReader extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  // Fungsi pembantu untuk mencari rasio SVG agar tidak melar
-  double _getSvgAspectRatio(String svgCode) {
-    try {
-      final regExp = RegExp(r'viewBox="0 0 (\d+) (\d+)"');
-      final match = regExp.firstMatch(svgCode);
-      if (match != null) {
-        double width = double.parse(match.group(1)!);
-        double height = double.parse(match.group(2)!);
-        return width / height;
-      }
-    } catch (e) {
-      // Jika gagal, gunakan rasio standar
-    }
-    return 16 / 9; // Default rasio jika tidak ditemukan
   }
 }
