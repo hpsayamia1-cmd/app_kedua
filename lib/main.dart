@@ -87,7 +87,6 @@ class _HomePageState extends State<HomePage> {
   bool isLoading = false;
   Article? leftSelected;
   Article? rightSelected;
-  
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -113,14 +112,10 @@ class _HomePageState extends State<HomePage> {
         content: const Text(
           "Sinsangnot adalah aplikasi perpustakaan notasi gending Jawa yang praktis dan portabel. "
           "Dibuat untuk memudahkan akses notasi secara cepat dan offline.\n\n"
-          "Seluruh data bersumber dari sinsangnot.blogspot.com. Jika ada saran, kritik, atau pertanyaan, "
-          "silakan hubungi kami melalui kolom komentar atau kontak yang tersedia di blog resmi kami."
+          "Seluruh data bersumber dari sinsangnot.blogspot.com."
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context), 
-            child: const Text("Tutup", style: TextStyle(color: Colors.grey))
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Tutup", style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
@@ -144,61 +139,45 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // FUNGSI SINKRONISASI DIPERBAIKI (SISTEM JEDA AGAR TIDAK LIMIT)
   Future<void> syncData() async {
     setState(() => isLoading = true);
     try {
       final dbPath = await getDatabasesPath();
       final db = await openDatabase(p.join(dbPath, 'puska.db'));
-      
       int startIndex = 1;
-      int maxResultsPerRequest = 10; // Dikurangi jadi 10 agar beban SVG tidak membuat koneksi putus
+      int maxResultsPerRequest = 5; 
       bool hasMore = true;
       int totalSaved = 0;
 
       await db.delete('posts'); 
 
       while (hasMore) {
-        final res = await http.get(Uri.parse(
-            'https://sinsangnot.blogspot.com/feeds/posts/default?alt=json&start-index=$startIndex&max-results=$maxResultsPerRequest'));
-        
+        final url = 'https://sinsangnot.blogspot.com/feeds/posts/default?alt=json&start-index=$startIndex&max-results=$maxResultsPerRequest&orderby=published';
+        final res = await http.get(Uri.parse(url));
         if (res.statusCode == 200) {
           final data = json.decode(res.body);
           final List entries = data['feed']['entry'] ?? [];
-          
           if (entries.isEmpty) {
             hasMore = false; 
           } else {
             for (var e in entries) {
-              await db.insert('posts', {
-                'id': e['id']['\$t'],
-                'title': e['title']['\$t'],
-                'content': e['content']['\$t']
-              }, conflictAlgorithm: ConflictAlgorithm.replace);
+              String fullContent = e['content'] != null ? e['content']['\$t'] : "";
+              if (fullContent.isEmpty && e['summary'] != null) fullContent = e['summary']['\$t'];
+              await db.insert('posts', {'id': e['id']['\$t'], 'title': e['title']['\$t'], 'content': fullContent}, conflictAlgorithm: ConflictAlgorithm.replace);
               totalSaved++;
             }
-            
             if (entries.length < maxResultsPerRequest) {
               hasMore = false;
             } else {
               startIndex += maxResultsPerRequest;
-              // Jeda 2 detik sangat penting agar server Blogger tidak menganggap aplikasi melakukan spam
-              await Future.delayed(const Duration(seconds: 2));
+              await Future.delayed(const Duration(seconds: 3));
             }
           }
-        } else {
-          hasMore = false;
-        }
+        } else { hasMore = false; }
       }
-
       await _refreshLocal();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Berhasil! $totalSaved gending tersimpan."))
-        );
-      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Sinkron. Coba lagi nanti.")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Sinkron.")));
     }
     setState(() => isLoading = false);
   }
@@ -207,28 +186,52 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     Color accentColor = widget.isDarkMode ? Colors.greenAccent : Colors.green[800]!;
 
+    if (allArticles.isEmpty) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(30.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.library_music, size: 80, color: accentColor),
+                const SizedBox(height: 20),
+                const Text("Unduh Notasi Gamelan", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 30),
+                if (isLoading) ...[
+                  CircularProgressIndicator(color: accentColor),
+                  const SizedBox(height: 20),
+                  const Text("Tunggu proses download selesai...", textAlign: TextAlign.center),
+                  const Text("Kecepatan download bergantung pada koneksi internet anda.", 
+                    style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                ] else ...[
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: accentColor, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
+                    onPressed: syncData,
+                    icon: const Icon(Icons.download),
+                    label: const Text("DOWNLOAD SEKARANG"),
+                  ),
+                ]
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 75,
-        centerTitle: false,
         leadingWidth: 110, 
         leading: Padding(
           padding: const EdgeInsets.only(left: 12),
-          child: Image.asset(
-            'assets/logo.png', 
-            fit: BoxFit.contain, 
-            errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: accentColor, size: 35)
-          ),
+          child: Image.asset('assets/logo.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: accentColor, size: 35)),
         ),
         actions: [
           if (isLoading) 
             const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
           else 
-            IconButton(
-              tooltip: "Sinkronisasi",
-              icon: Icon(Icons.sync, color: accentColor, size: 28),
-              onPressed: syncData,
-            ),
+            IconButton(icon: Icon(Icons.sync, color: accentColor, size: 28), onPressed: syncData),
 
           PopupMenuButton<int>(
             icon: Icon(Icons.settings, color: accentColor, size: 28),
@@ -270,38 +273,35 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: allArticles.isEmpty && !isLoading
-          ? const Center(child: Text("Klik tombol (🔄 sinkron) diatas untuk data terbaru"))
-          : Column(
+      body: Column(
+        children: [
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (int page) => setState(() => _currentPage = page),
               children: [
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    physics: const BouncingScrollPhysics(),
-                    onPageChanged: (int page) => setState(() => _currentPage = page),
-                    children: [
-                      ArticlePanelView(articles: allArticles, selected: leftSelected, onSelect: (a) => setState(() => leftSelected = a)),
-                      ArticlePanelView(articles: allArticles, selected: rightSelected, onSelect: (a) => setState(() => rightSelected = a)),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).appBarTheme.backgroundColor,
-                    border: Border(top: BorderSide(color: Colors.black.withOpacity(0.05)))
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildTabIndicator(0, "PANEL 1", accentColor),
-                      const SizedBox(width: 25),
-                      _buildTabIndicator(1, "PANEL 2", accentColor),
-                    ],
-                  ),
-                )
+                ArticlePanelView(articles: allArticles, selected: leftSelected, onSelect: (a) => setState(() => leftSelected = a)),
+                ArticlePanelView(articles: allArticles, selected: rightSelected, onSelect: (a) => setState(() => rightSelected = a)),
               ],
             ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).appBarTheme.backgroundColor,
+              border: Border(top: BorderSide(color: Colors.black.withOpacity(0.05)))
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildTabIndicator(0, "PANEL 1", accentColor),
+                const SizedBox(width: 25),
+                _buildTabIndicator(1, "PANEL 2", accentColor),
+              ],
+            ),
+          )
+        ],
+      ),
     );
   }
 
@@ -310,14 +310,12 @@ class _HomePageState extends State<HomePage> {
     return GestureDetector(
       onTap: () => _pageController.animateToPage(index, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? accentColor : Colors.grey)),
           const SizedBox(height: 5),
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            height: 4,
-            width: isActive ? 45 : 12,
+            height: 4, width: isActive ? 45 : 12,
             decoration: BoxDecoration(color: isActive ? accentColor : Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
           )
         ],
@@ -337,30 +335,19 @@ class ArticlePanelView extends StatefulWidget {
 
 class _ArticlePanelViewState extends State<ArticlePanelView> {
   String query = "";
-  final TextEditingController _searchController = TextEditingController();
-
-  void _closeAndReset() {
-    setState(() { query = ""; _searchController.clear(); });
-    widget.onSelect(null);
-  }
-
   @override
   Widget build(BuildContext context) {
-    List<Article> filtered = widget.articles
-        .where((a) => a.title.toLowerCase().contains(query.toLowerCase()))
-        .toList();
-
+    List<Article> filtered = widget.articles.where((a) => a.title.toLowerCase().contains(query.toLowerCase())).toList();
     return PopScope(
       canPop: widget.selected == null,
-      onPopInvokedWithResult: (didPop, result) { if (!didPop) _closeAndReset(); },
+      onPopInvokedWithResult: (didPop, result) { if (!didPop) widget.onSelect(null); },
       child: widget.selected != null 
-          ? ArticleReader(title: widget.selected!.title, content: widget.selected!.content, onClose: _closeAndReset)
+          ? ArticleReader(title: widget.selected!.title, content: widget.selected!.content, onClose: () => widget.onSelect(null))
           : Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: TextField(
-                    controller: _searchController,
                     onChanged: (v) => setState(() => query = v),
                     decoration: InputDecoration(
                       hintText: "Cari Gending...", 
