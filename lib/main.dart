@@ -144,7 +144,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // FUNGSI SINKRONISASI ABADI (ANTI LIMIT 9 ARTIKEL)
+  // FUNGSI SINKRONISASI DIPERBAIKI (SISTEM JEDA AGAR TIDAK LIMIT)
   Future<void> syncData() async {
     setState(() => isLoading = true);
     try {
@@ -152,7 +152,7 @@ class _HomePageState extends State<HomePage> {
       final db = await openDatabase(p.join(dbPath, 'puska.db'));
       
       int startIndex = 1;
-      int maxResultsPerRequest = 50; 
+      int maxResultsPerRequest = 10; // Dikurangi jadi 10 agar beban SVG tidak membuat koneksi putus
       bool hasMore = true;
       int totalSaved = 0;
 
@@ -182,6 +182,8 @@ class _HomePageState extends State<HomePage> {
               hasMore = false;
             } else {
               startIndex += maxResultsPerRequest;
+              // Jeda 2 detik sangat penting agar server Blogger tidak menganggap aplikasi melakukan spam
+              await Future.delayed(const Duration(seconds: 2));
             }
           }
         } else {
@@ -189,14 +191,14 @@ class _HomePageState extends State<HomePage> {
         }
       }
 
-      _refreshLocal();
+      await _refreshLocal();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Sinkronisasi Berhasil! $totalSaved artikel tersimpan."))
+          SnackBar(content: Text("Berhasil! $totalSaved gending tersimpan."))
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Sinkron.")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Sinkron. Coba lagi nanti.")));
     }
     setState(() => isLoading = false);
   }
@@ -218,7 +220,6 @@ class _HomePageState extends State<HomePage> {
             errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: accentColor, size: 35)
           ),
         ),
-        title: null, // TEKS PUSKARAJA DIHAPUS
         actions: [
           if (isLoading) 
             const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
@@ -270,13 +271,13 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: allArticles.isEmpty && !isLoading
-          ? const Center(child: Text("Klik tombol 🔄 sinkron untuk data terbaru"))
+          ? const Center(child: Text("Klik tombol (🔄 sinkron) diatas untuk data terbaru"))
           : Column(
               children: [
                 Expanded(
                   child: PageView(
                     controller: _pageController,
-                    physics: const BouncingScrollPhysics(), // TRANSISI SMOOTH
+                    physics: const BouncingScrollPhysics(),
                     onPageChanged: (int page) => setState(() => _currentPage = page),
                     children: [
                       ArticlePanelView(articles: allArticles, selected: leftSelected, onSelect: (a) => setState(() => leftSelected = a)),

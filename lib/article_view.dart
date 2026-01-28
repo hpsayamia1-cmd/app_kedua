@@ -14,12 +14,13 @@ class ArticleReader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ini akan mendeteksi apakah aplikasi sedang Mode Gelap atau Terang 
+    // berdasarkan tombol yang kamu tekan di HomePage
     bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    // KONFIGURASI WARNA BERDASARKAN CSS BLOG (sinsangnot.blogspot.com)
+    // Sinkronkan warna dengan CSS Blog kamu
     String textColor = isDarkMode ? "#f0fdf4" : "#1e293b";
-    String titleColor = isDarkMode ? "#00ff00" : "#0000ee"; // Hijau di Gelap, Biru di Terang
-    String tableBg = isDarkMode ? "#1a1a1a" : "#F3F5EF";
+    String titleColor = isDarkMode ? "#00ff00" : "#0000ee";
     String tableBorder = isDarkMode ? "#333333" : "#bbbbbb";
 
     return Scaffold(
@@ -31,17 +32,17 @@ class ArticleReader extends StatelessWidget {
           onPressed: onClose,
         ),
         title: Text(
-          "Baca Notasi",
+          "Detail Notasi",
           style: TextStyle(color: isDarkMode ? Colors.greenAccent : Colors.black, fontSize: 16),
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // JUDUL ARTIKEL (Gaya .post-title-full di CSS Blog)
+            // JUDUL (Warna otomatis ganti Hijau/Biru saat tombol ditekan)
             Text(
               title,
               style: TextStyle(
@@ -53,61 +54,52 @@ class ArticleReader extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             
-            // RENDERING KONTEN HTML DENGAN FILTER CSS UNTUK SVG
             HtmlWidget(
               content,
               textStyle: TextStyle(
                 color: Color(int.parse(textColor.replaceFirst('#', '0xFF'))),
                 fontSize: 16,
+                fontFamily: 'Inter',
               ),
+              // MEMPERBAIKI SVG GEDE & WARNA
               customStylesBuilder: (element) {
-                // FILTER HIJAU UNTUK SVG (Sama persis dengan filter di CSS b:skin kamu)
-                if (element.localName == 'svg' || (element.localName == 'img' && element.attributes['src']?.contains('.svg') == true)) {
+                // Targetkan elemen gambar atau SVG
+                if (element.localName == 'svg' || 
+                    element.localName == 'img' || 
+                    (element.attributes['src']?.contains('.svg') ?? false)) {
                   return {
-                    'max-width': '100%',
+                    'width': '100%', // Agar tidak gede banget/meluber
                     'height': 'auto',
+                    'display': 'block',
+                    'margin': '10px auto',
+                    // Filter hijau aktif jika isDarkMode true
                     if (isDarkMode) 
-                      'filter': 'invert(48%) sepia(100%) saturate(5000%) hue-rotate(90deg) brightness(200%) contrast(100%)'
+                      'filter': 'invert(48%) sepia(100%) saturate(5000%) hue-rotate(90deg) brightness(200%)'
                   };
                 }
 
-                // STYLE TABEL (Sesuai .table-2 di blog)
+                // Styling Tabel
                 if (element.localName == 'table') {
                   return {
+                    'border': '1px solid $tableBorder',
                     'width': '100%',
-                    'border-collapse': 'collapse',
-                    'background-color': tableBg,
-                    'border': '1px solid $tableBorder',
-                  };
-                }
-                
-                if (element.localName == 'td' || element.localName == 'th') {
-                  return {
-                    'border': '1px solid $tableBorder',
-                    'padding': '6px',
-                    'text-align': 'center',
-                    'font-size': '14px',
                   };
                 }
 
-                // STYLE LIRIK (Sesuai class .lirik di blog)
+                // Styling Lirik
                 if (element.className == 'lirik' || element.localName == 'pre') {
                   return {
-                    'font-family': 'Georgia, serif',
                     'text-align': 'center',
+                    'font-family': 'Georgia, serif',
+                    'padding': '15px 0',
                     'border-top': '1px solid $tableBorder',
                     'border-bottom': '1px solid $tableBorder',
-                    'padding': '15px 0',
-                    'margin': '15px 0',
-                    'white-space': 'pre-wrap',
-                    'font-style': 'italic',
                   };
                 }
-
                 return null;
               },
             ),
-            const SizedBox(height: 50),
+            const SizedBox(height: 100), // Spasi bawah agar tidak mentok
           ],
         ),
       ),
