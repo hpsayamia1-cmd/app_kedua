@@ -335,23 +335,54 @@ class ArticlePanelView extends StatefulWidget {
 
 class _ArticlePanelViewState extends State<ArticlePanelView> {
   String query = "";
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
     List<Article> filtered = widget.articles.where((a) => a.title.toLowerCase().contains(query.toLowerCase())).toList();
+    
     return PopScope(
       canPop: widget.selected == null,
-      onPopInvokedWithResult: (didPop, result) { if (!didPop) widget.onSelect(null); },
+      onPopInvokedWithResult: (didPop, result) { 
+        if (!didPop) {
+          setState(() {
+            query = "";
+            _searchController.clear();
+          });
+          widget.onSelect(null); 
+        }
+      },
       child: widget.selected != null 
-          ? ArticleReader(title: widget.selected!.title, content: widget.selected!.content, onClose: () => widget.onSelect(null))
+          ? ArticleReader(
+              title: widget.selected!.title, 
+              content: widget.selected!.content, 
+              onClose: () {
+                setState(() {
+                  query = "";
+                  _searchController.clear();
+                });
+                widget.onSelect(null);
+              }
+            )
           : Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: TextField(
+                    controller: _searchController,
                     onChanged: (v) => setState(() => query = v),
                     decoration: InputDecoration(
                       hintText: "Cari Gending...", 
                       prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: query.isNotEmpty 
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () => setState(() {
+                              _searchController.clear();
+                              query = "";
+                            }),
+                          )
+                        : null,
                       filled: true,
                       fillColor: Theme.of(context).cardColor,
                       contentPadding: const EdgeInsets.symmetric(vertical: 0),
@@ -382,5 +413,11 @@ class _ArticlePanelViewState extends State<ArticlePanelView> {
               ],
             ),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }
