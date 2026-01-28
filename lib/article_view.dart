@@ -11,15 +11,24 @@ class ArticleReader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    // Warna judul yang pasti kelihatan
+    Color titleColor = isDarkMode ? Colors.greenAccent : Colors.blue[900]!;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: isDarkMode ? const Color(0xFF010A01) : Colors.white,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: onClose),
-        title: const Text("Detail Notasi", style: TextStyle(fontSize: 16)),
+        backgroundColor: isDarkMode ? Colors.black : Colors.blue[900],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white), 
+          onPressed: onClose
+        ),
+        title: const Text("Detail Notasi", style: TextStyle(color: Colors.white, fontSize: 16)),
       ),
       body: SelectionArea(
         child: SingleChildScrollView(
+          // Optimasi scroll: Berikan physics agar lebih smooth
+          physics: const BouncingScrollPhysics(), 
           padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,71 +38,45 @@ class ArticleReader extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? Colors.greenAccent : const Color(0xFF0D47A1),
+                  color: titleColor, // Paksa warna muncul
                 ),
               ),
-              const Divider(height: 30, thickness: 1),
+              const Divider(height: 30, thickness: 1, color: Colors.orange),
               
               HtmlWidget(
                 content,
-                // JURUS PAMUNGKAS: Ambil alih elemen SVG
-                customWidgetBuilder: (element) {
-                  if (element.localName == 'svg') {
-                    return Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.symmetric(vertical: 15),
-                      // 1. PAKSA WARNA JADI HIJAU NEON (Hanya di Mode Gelap)
-                      child: ColorFiltered(
-                        colorFilter: isDarkMode 
-                          ? const ColorFilter.matrix([
-                              0, 0, 0, 0, 0,       // R
-                              0, 1.5, 0, 0, 0,     // G (Hijau diperkuat)
-                              0, 0, 0, 0, 0,       // B
-                              -1, -1, -1, 1, 255,  // Invert warna hitam ke terang
-                            ])
-                          : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-                        // 2. PAKSA AGAR TIDAK GEPENG
-                        child: FittedBox(
-                          fit: BoxFit.contain,
-                          child: HtmlWidget(element.outerHtml),
-                        ),
-                      ),
-                    );
-                  }
-                  return null;
-                },
-                
-                customStylesBuilder: (element) {
-                  // Styling Tabel
-                  if (element.localName == 'table') {
-                    return {
-                      'width': '100% !important',
-                      'border-collapse': 'collapse',
-                      'border': '1px solid ${isDarkMode ? "#333" : "#ccc"}',
-                    };
-                  }
-                  // Styling Lirik (Sudah bagus)
-                  if (element.classes.contains('lirik') || element.localName == 'pre') {
-                    return {
-                      'font-family': 'Georgia, serif',
-                      'font-style': 'italic',
-                      'background-color': isDarkMode ? '#0a1a0a' : '#fff9f0',
-                      'padding': '15px',
-                      'border-left': '5px solid #ff9800',
-                      'margin': '15px 0',
-                    };
-                  }
-                  return null;
-                },
+                // Mengurangi beban render agar tidak lag
+                renderMode: RenderMode.column, 
                 textStyle: TextStyle(
                   color: isDarkMode ? Colors.white : Colors.black87,
                   fontSize: 16,
                 ),
+                customStylesBuilder: (element) {
+                  if (element.localName == 'svg') {
+                    return {
+                      'width': '100% !important',
+                      'height': 'auto !important',
+                      // Gunakan invert sederhana: Hitam jadi Putih/Hijau
+                      'filter': isDarkMode ? 'invert(1) sepia(1) saturate(5) hue-rotate(90deg)' : 'none',
+                      'display': 'block',
+                      'margin': '10px auto',
+                    };
+                  }
+                  if (element.classes.contains('lirik') || element.localName == 'pre') {
+                    return {
+                      'font-family': 'Georgia, serif',
+                      'background-color': isDarkMode ? '#0a1a0a' : '#fff9f0',
+                      'padding': '12px',
+                      'border-left': '4px solid #ff9800',
+                    };
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 100),
             ],
           ),
-            ),
+        ),
       ),
     );
   }
