@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart'; // Import baru
+import 'package:url_launcher/url_launcher.dart'; 
 import 'article_view.dart'; 
 
 void main() => runApp(PuskarajaApp());
@@ -97,7 +97,6 @@ class _HomePageState extends State<HomePage> {
     _refreshLocal();
   }
 
-  // Fungsi untuk membuka URL (Blog/Donasi)
   Future<void> _launchURL(String url) async {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -105,7 +104,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-// Dialog Tentang Kami yang Terarah ke Blog
   void _showAboutDialog() {
     showDialog(
       context: context,
@@ -146,21 +144,56 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  // FUNGSI SINKRONISASI ABADI (ANTI LIMIT 9 ARTIKEL)
   Future<void> syncData() async {
     setState(() => isLoading = true);
     try {
-      final res = await http.get(Uri.parse('https://sinsangnot.blogspot.com/feeds/posts/default?alt=json&max-results=500'));
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        final List entries = data['feed']['entry'] ?? [];
-        final dbPath = await getDatabasesPath();
-        final db = await openDatabase(p.join(dbPath, 'puska.db'));
-        await db.delete('posts'); 
-        for (var e in entries) {
-          await db.insert('posts', {'id': e['id']['\$t'], 'title': e['title']['\$t'], 'content': e['content']['\$t']});
+      final dbPath = await getDatabasesPath();
+      final db = await openDatabase(p.join(dbPath, 'puska.db'));
+      
+      int startIndex = 1;
+      int maxResultsPerRequest = 50; 
+      bool hasMore = true;
+      int totalSaved = 0;
+
+      await db.delete('posts'); 
+
+      while (hasMore) {
+        final res = await http.get(Uri.parse(
+            'https://sinsangnot.blogspot.com/feeds/posts/default?alt=json&start-index=$startIndex&max-results=$maxResultsPerRequest'));
+        
+        if (res.statusCode == 200) {
+          final data = json.decode(res.body);
+          final List entries = data['feed']['entry'] ?? [];
+          
+          if (entries.isEmpty) {
+            hasMore = false; 
+          } else {
+            for (var e in entries) {
+              await db.insert('posts', {
+                'id': e['id']['\$t'],
+                'title': e['title']['\$t'],
+                'content': e['content']['\$t']
+              }, conflictAlgorithm: ConflictAlgorithm.replace);
+              totalSaved++;
+            }
+            
+            if (entries.length < maxResultsPerRequest) {
+              hasMore = false;
+            } else {
+              startIndex += maxResultsPerRequest;
+            }
+          }
+        } else {
+          hasMore = false;
         }
-        _refreshLocal();
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sinkronisasi Berhasil!")));
+      }
+
+      _refreshLocal();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Sinkronisasi Berhasil! $totalSaved artikel tersimpan."))
+        );
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Sinkron.")));
@@ -171,36 +204,33 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     Color accentColor = widget.isDarkMode ? Colors.greenAccent : Colors.green[800]!;
-    // ignore: unused_local_variable
-    Color btnBg = widget.isDarkMode ? Colors.white10 : Colors.grey[200]!;
 
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 70,
+        toolbarHeight: 75,
         centerTitle: false,
-        // LOGO DI KIRI - LEBAR DITAMBAH AGAR LOGO BISA LEBIH BESAR
-        leadingWidth: 100, 
+        leadingWidth: 110, 
         leading: Padding(
           padding: const EdgeInsets.only(left: 12),
           child: Image.asset(
             'assets/logo.png', 
-            fit: BoxFit.contain, // Memastikan logo besar dan proporsional
-            errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: accentColor, size: 30)
+            fit: BoxFit.contain, 
+            errorBuilder: (c, e, s) => Icon(Icons.menu_book, color: accentColor, size: 35)
           ),
         ),
-        title: null, // TEKS PUSKARAJA DIHAPUS SESUAI PERMINTAAN
+        title: null, // TEKS PUSKARAJA DIHAPUS
         actions: [
           if (isLoading) 
             const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
           else 
             IconButton(
               tooltip: "Sinkronisasi",
-              icon: Icon(Icons.sync, color: accentColor),
+              icon: Icon(Icons.sync, color: accentColor, size: 28),
               onPressed: syncData,
             ),
 
           PopupMenuButton<int>(
-            icon: Icon(Icons.settings, color: accentColor),
+            icon: Icon(Icons.settings, color: accentColor, size: 28),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (item) {
               switch (item) {
@@ -240,14 +270,13 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: allArticles.isEmpty && !isLoading
-          ? const Center(child: Text("Klik sinkron untuk data terbaru"))
+          ? const Center(child: Text("Klik tombol 🔄 sinkron untuk data terbaru"))
           : Column(
               children: [
                 Expanded(
                   child: PageView(
                     controller: _pageController,
-                    // PHYSICS DITAMBAHKAN AGAR TRANSISI SMOOTH & ANTI-GLITCH
-                    physics: const BouncingScrollPhysics(),
+                    physics: const BouncingScrollPhysics(), // TRANSISI SMOOTH
                     onPageChanged: (int page) => setState(() => _currentPage = page),
                     children: [
                       ArticlePanelView(articles: allArticles, selected: leftSelected, onSelect: (a) => setState(() => leftSelected = a)),
@@ -265,7 +294,7 @@ class _HomePageState extends State<HomePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _buildTabIndicator(0, "PANEL 1", accentColor),
-                      const SizedBox(width: 20),
+                      const SizedBox(width: 25),
                       _buildTabIndicator(1, "PANEL 2", accentColor),
                     ],
                   ),
@@ -278,16 +307,16 @@ class _HomePageState extends State<HomePage> {
   Widget _buildTabIndicator(int index, String label, Color accentColor) {
     bool isActive = _currentPage == index;
     return GestureDetector(
-      onTap: () => _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
+      onTap: () => _pageController.animateToPage(index, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? accentColor : Colors.grey)),
-          const SizedBox(height: 4),
+          const SizedBox(height: 5),
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             height: 4,
-            width: isActive ? 40 : 10,
+            width: isActive ? 45 : 12,
             decoration: BoxDecoration(color: isActive ? accentColor : Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
           )
         ],
@@ -300,9 +329,7 @@ class ArticlePanelView extends StatefulWidget {
   final List<Article> articles;
   final Article? selected;
   final Function(Article?) onSelect;
-
   ArticlePanelView({required this.articles, required this.selected, required this.onSelect});
-
   @override
   _ArticlePanelViewState createState() => _ArticlePanelViewState();
 }
