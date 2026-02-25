@@ -25,8 +25,8 @@ class ArticleReader extends StatelessWidget {
       ),
       body: SelectionArea(
         child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.all(18),
+          physics: const ClampingScrollPhysics(), // Kembali ke pilihan kamu
+          padding: const EdgeInsets.all(18),      // Kembali ke padding 18 kamu
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -49,20 +49,25 @@ class ArticleReader extends StatelessWidget {
                     return Container(
                       width: double.infinity,
                       margin: const EdgeInsets.symmetric(vertical: 10),
-                      child: ColorFiltered(
-                        colorFilter: isDarkMode
-                            ? const ColorFilter.matrix([
-                                -1, 0, 0, 0, 255, 
-                                0, -1, 0, 0, 255, 
-                                0, 0, -1, 0, 255, 
-                                0, 0, 0, 1, 0,    
-                              ])
-                            : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-                        // PERBAIKAN DI SINI: Menggunakan FittedBox agar tidak gepeng
-                        child: FittedBox(
-                          fit: BoxFit.contain, // Menjaga proporsi asli gambar
-                          alignment: Alignment.center,
-                          child: HtmlWidget(svgCode),
+                      // PENAMBAHAN REPAINTBOUNDARY: Agar scroll lancar
+                      child: RepaintBoundary(
+                        child: ColorFiltered(
+                          colorFilter: isDarkMode
+                              ? const ColorFilter.matrix([
+                                  -1, 0, 0, 0, 255, 
+                                  0, -1, 0, 0, 255, 
+                                  0, 0, -1, 0, 255, 
+                                  0, 0, 0, 1, 0,    
+                                ])
+                              : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                          child: FittedBox(
+                            fit: BoxFit.contain, 
+                            alignment: Alignment.center,
+                            // PENAMBAHAN CLIPRECT: Membantu performa render
+                            child: ClipRect(
+                              child: HtmlWidget(svgCode),
+                            ),
+                          ),
                         ),
                       ),
                     );
