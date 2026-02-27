@@ -49,10 +49,9 @@ class ArticleReader extends StatelessWidget {
                     return Container(
                       width: double.infinity,
                       margin: const EdgeInsets.symmetric(vertical: 10),
-                      // OPTIMASI 1: Matikan seleksi area khusus untuk SVG agar scroll licin
-                      child: SelectionArea.disabled(
+                      // PERBAIKAN: Menggunakan SelectionContainer.disabled agar build tidak error
+                      child: SelectionContainer.disabled(
                         child: RepaintBoundary(
-                          // OPTIMASI 2: ValueKey agar Flutter tidak build ulang saat scroll
                           key: ValueKey(svgCode.hashCode),
                           child: ColorFiltered(
                             colorFilter: isDarkMode
