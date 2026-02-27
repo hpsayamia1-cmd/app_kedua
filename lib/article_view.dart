@@ -25,8 +25,8 @@ class ArticleReader extends StatelessWidget {
       ),
       body: SelectionArea(
         child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(), // Kembali ke pilihan kamu
-          padding: const EdgeInsets.all(18),      // Kembali ke padding 18 kamu
+          physics: const ClampingScrollPhysics(), // Tetap pilihan Anda
+          padding: const EdgeInsets.all(18),      // Tetap padding 18
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -49,23 +49,26 @@ class ArticleReader extends StatelessWidget {
                     return Container(
                       width: double.infinity,
                       margin: const EdgeInsets.symmetric(vertical: 10),
-                      // PENAMBAHAN REPAINTBOUNDARY: Agar scroll lancar
-                      child: RepaintBoundary(
-                        child: ColorFiltered(
-                          colorFilter: isDarkMode
-                              ? const ColorFilter.matrix([
-                                  -1, 0, 0, 0, 255, 
-                                  0, -1, 0, 0, 255, 
-                                  0, 0, -1, 0, 255, 
-                                  0, 0, 0, 1, 0,    
-                                ])
-                              : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-                          child: FittedBox(
-                            fit: BoxFit.contain, 
-                            alignment: Alignment.center,
-                            // PENAMBAHAN CLIPRECT: Membantu performa render
-                            child: ClipRect(
-                              child: HtmlWidget(svgCode),
+                      // OPTIMASI 1: Matikan seleksi area khusus untuk SVG agar scroll licin
+                      child: SelectionArea.disabled(
+                        child: RepaintBoundary(
+                          // OPTIMASI 2: ValueKey agar Flutter tidak build ulang saat scroll
+                          key: ValueKey(svgCode.hashCode),
+                          child: ColorFiltered(
+                            colorFilter: isDarkMode
+                                ? const ColorFilter.matrix([
+                                    -1, 0, 0, 0, 255, 
+                                    0, -1, 0, 0, 255, 
+                                    0, 0, -1, 0, 255, 
+                                    0, 0, 0, 1, 0,    
+                                  ])
+                                : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                            child: FittedBox(
+                              fit: BoxFit.contain, 
+                              alignment: Alignment.center,
+                              child: ClipRect(
+                                child: HtmlWidget(svgCode),
+                              ),
                             ),
                           ),
                         ),
