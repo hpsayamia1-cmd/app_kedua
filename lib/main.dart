@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 import 'article_view.dart'; 
-import 'package:flutter/services.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,13 +37,8 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
   Future<void> _toggleTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      if (_themeMode == ThemeMode.light) {
-        _themeMode = ThemeMode.dark;
-        prefs.setBool('isDarkMode', true);
-      } else {
-        _themeMode = ThemeMode.light;
-        prefs.setBool('isDarkMode', false);
-      }
+      _themeMode = (_themeMode == ThemeMode.light) ? ThemeMode.dark : ThemeMode.light;
+      prefs.setBool('isDarkMode', _themeMode == ThemeMode.dark);
     });
   }
 
@@ -55,17 +49,16 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
       themeMode: _themeMode,
       theme: ThemeData(
         brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF8F9FA),
-        primaryColor: Colors.green[800],
-        appBarTheme: const AppBarTheme(backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 0),
-        cardColor: Colors.white,
+        scaffoldBackgroundColor: const Color(0xFFF0F4F8), // Biru sangat muda
+        primaryColor: Colors.blue[800],
+        appBarTheme: const AppBarTheme(backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 1),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.light),
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF010A01),
-        primaryColor: Colors.greenAccent,
+        primaryColor: Colors.blueAccent,
         appBarTheme: const AppBarTheme(backgroundColor: Colors.black, foregroundColor: Colors.white, elevation: 0),
-        cardColor: const Color(0xFF0A140A),
       ),
       home: RootNavigation(toggleTheme: _toggleTheme, isDarkMode: _themeMode == ThemeMode.dark),
     );
@@ -89,8 +82,7 @@ class RootNavigation extends StatefulWidget {
 class _RootNavigationState extends State<RootNavigation> {
   List<Article> allArticles = [];
   bool isLoading = false;
-  bool isPanelMode = false; 
-  
+  bool isPanelMode = false;
   Article? leftSelected;
   Article? rightSelected;
   final PageController _pageController = PageController();
@@ -119,8 +111,9 @@ class _RootNavigationState extends State<RootNavigation> {
       final dbPath = await getDatabasesPath();
       final db = await openDatabase(p.join(dbPath, 'puska.db'));
       int startIndex = 1;
-      int maxResultsPerRequest = 10; 
+      int maxResultsPerRequest = 5; // Kembali ke 5 agar stabil
       bool hasMore = true;
+
       await db.delete('posts'); 
 
       while (hasMore) {
@@ -141,13 +134,12 @@ class _RootNavigationState extends State<RootNavigation> {
               hasMore = false;
             } else {
               startIndex += maxResultsPerRequest;
-              await Future.delayed(const Duration(milliseconds: 500));
+              await Future.delayed(const Duration(seconds: 1)); // Delay biar gak diblokir
             }
           }
         } else { hasMore = false; }
       }
       await _refreshLocal();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sinkronisasi Berhasil!")));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Sinkron.")));
     }
@@ -187,7 +179,12 @@ class _RootNavigationState extends State<RootNavigation> {
   Widget _buildMainHome() {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("SINSANGNOT", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        toolbarHeight: 70,
+        leadingWidth: 120,
+        leading: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Image.asset('assets/logo.png', fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.menu_book)),
+        ),
         actions: [_buildSettingsMenu()],
       ),
       body: HomeContentView(
@@ -199,100 +196,78 @@ class _RootNavigationState extends State<RootNavigation> {
   }
 
   Widget _buildPanelLayout() {
-    Color accentColor = widget.isDarkMode ? Colors.greenAccent : Colors.green[800]!;
+    Color btnColor = widget.isDarkMode ? Colors.blueAccent : Colors.blue[800]!;
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text(_currentPage == 0 ? (leftSelected?.title ?? "Panel 1") : (rightSelected?.title ?? "Beranda Panel 2"), style: const TextStyle(fontSize: 14)),
+        leading: IconButton(icon: const Icon(Icons.home), onPressed: () => setState(() => isPanelMode = false)),
+        actions: [
+          IconButton(icon: const Icon(Icons.close), onPressed: () {
+            if (_currentPage == 0) setState(() => isPanelMode = false);
+            else setState(() => rightSelected = null);
+          })
+        ],
+      ),
       body: Stack(
         children: [
           PageView(
             controller: _pageController,
             onPageChanged: (int page) => setState(() => _currentPage = page),
             children: [
-              _buildSliverReader(leftSelected!, true),
+              ArticleReader(title: leftSelected!.title, content: leftSelected!.content, onClose: () {}),
               rightSelected != null 
-                  ? _buildSliverReader(rightSelected!, false)
-                  : Scaffold(
-                      appBar: AppBar(
-                        title: const Text("Beranda Panel 2", style: TextStyle(fontSize: 14)),
-                        automaticallyImplyLeading: false,
-                        actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.ease))],
-                      ),
-                      body: HomeContentView(
-                        articles: allArticles,
-                        onArticleTap: (a) => setState(() => rightSelected = a),
-                        isDarkMode: widget.isDarkMode,
-                      ),
-                    ),
+                  ? ArticleReader(title: rightSelected!.title, content: rightSelected!.content, onClose: () {})
+                  : HomeContentView(articles: allArticles, onArticleTap: (a) => setState(() => rightSelected = a), isDarkMode: widget.isDarkMode),
             ],
           ),
-          // FIX ERROR: Menggunakan SizedBox untuk mengatur tinggi tombol
-          if (_currentPage == 0)
-            Positioned(
-              top: 100, right: 10,
-              child: SizedBox(
-                height: 40,
-                child: FloatingActionButton.extended(
-                  heroTag: "btn1",
-                  onPressed: () => _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
-                  label: const Text("Panel 2"), icon: const Icon(Icons.arrow_forward),
-                  backgroundColor: accentColor.withOpacity(0.8),
-                ),
-              ),
+          // Tombol Navigasi Manual
+          Positioned(
+            top: 10,
+            right: _currentPage == 0 ? 10 : null,
+            left: _currentPage == 1 ? 10 : null,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: btnColor.withOpacity(0.9), foregroundColor: Colors.white),
+              onPressed: () {
+                if (_currentPage == 0) _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+                else _pageController.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+              },
+              icon: Icon(_currentPage == 0 ? Icons.arrow_forward : Icons.arrow_back, size: 16),
+              label: Text(_currentPage == 0 ? "Ke Panel 2" : "Ke Panel 1", style: const TextStyle(fontSize: 12)),
             ),
-          if (_currentPage == 1)
-            Positioned(
-              top: 100, left: 10,
-              child: SizedBox(
-                height: 40,
-                child: FloatingActionButton.extended(
-                  heroTag: "btn2",
-                  onPressed: () => _pageController.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
-                  label: const Text("Panel 1"), icon: const Icon(Icons.arrow_back),
-                  backgroundColor: accentColor.withOpacity(0.8),
-                ),
-              ),
-            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildSliverReader(Article article, bool isLeft) {
-    return NestedScrollView(
-      headerSliverBuilder: (context, innerBoxIsScrolled) => [
-        SliverAppBar(
-          // FIX HEADER: floating true tapi snap false agar muncul pelan-pelan mengikuti scroll
-          floating: true, 
-          snap: false, 
-          pinned: false,
-          leading: IconButton(icon: const Icon(Icons.home), onPressed: () => setState(() => isPanelMode = false)),
-          title: Text(article.title, style: const TextStyle(fontSize: 14)),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => isLeft ? setState(() => isPanelMode = false) : setState(() => rightSelected = null),
-            )
-          ],
-        ),
-      ],
-      body: ArticleReader(title: article.title, content: article.content, onClose: () {}),
-    );
-  }
-
   Widget _buildSettingsMenu() {
     return PopupMenuButton<int>(
-      icon: const Icon(Icons.settings),
-      onSelected: (item) {
+      icon: const Icon(Icons.settings, color: Colors.blue),
+      onSelected: (item) async {
         if (item == 0) widget.toggleTheme();
         if (item == 1) syncData();
-        if (item == 2) _launchURL("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526");
+        if (item == 2) _showAbout();
+        if (item == 3) _launchURL("https://sinsangnot.blogspot.com");
+        if (item == 4) _launchURL("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526");
       },
       itemBuilder: (context) => [
         PopupMenuItem(value: 0, child: ListTile(leading: Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode), title: Text(widget.isDarkMode ? "Mode Terang" : "Mode Gelap"))),
-        PopupMenuItem(value: 1, child: ListTile(leading: const Icon(Icons.sync), title: const Text("Sinkronisasi Data"))),
-        PopupMenuItem(value: 2, child: ListTile(leading: const Icon(Icons.favorite, color: Colors.red), title: const Text("Donasi DANA"))),
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: 1, child: ListTile(leading: Icon(Icons.sync), title: Text("Sinkronisasi Data"))),
+        const PopupMenuItem(value: 2, child: ListTile(leading: Icon(Icons.info), title: Text("Tentang Kami"))),
+        const PopupMenuItem(value: 3, child: ListTile(leading: Icon(Icons.language), title: Text("Kunjungi Blog"))),
+        const PopupMenuItem(value: 4, child: ListTile(leading: Icon(Icons.favorite, color: Colors.red), title: Text("Donasi"))),
       ],
     );
+  }
+
+  void _showAbout() {
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: const Text("Tentang Sinsangnot"),
+      content: const Text("Perpustakaan Digital Notasi Gending Jawa. Praktis, Cepat, dan Offline."),
+      actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("OK"))],
+    ));
   }
 
   Widget _buildInitialDownload() {
@@ -301,10 +276,10 @@ class _RootNavigationState extends State<RootNavigation> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.library_music, size: 80, color: Colors.green),
+            const Icon(Icons.library_music, size: 80, color: Colors.blue),
             const SizedBox(height: 20),
             if (isLoading) const CircularProgressIndicator()
-            else ElevatedButton(onPressed: syncData, child: const Text("DOWNLOAD DATA NOTASI")),
+            else ElevatedButton(onPressed: syncData, child: const Text("DOWNLOAD DATA")),
           ],
         ),
       ),
@@ -321,9 +296,7 @@ class HomeContentView extends StatefulWidget {
   final List<Article> articles;
   final Function(Article) onArticleTap;
   final bool isDarkMode;
-
   HomeContentView({required this.articles, required this.onArticleTap, required this.isDarkMode});
-
   @override
   _HomeContentViewState createState() => _HomeContentViewState();
 }
@@ -334,15 +307,10 @@ class _HomeContentViewState extends State<HomeContentView> {
   bool isSearching = false;
 
   void _handleSearch(String q) {
-    if (q.isEmpty) {
-      setState(() { isSearching = false; searchResults = []; });
-      return;
-    }
+    if (q.isEmpty) { setState(() { isSearching = false; searchResults = []; }); return; }
     setState(() {
       isSearching = true;
-      searchResults = widget.articles.where((a) => 
-        a.title.toLowerCase().contains(q.toLowerCase()) || 
-        a.content.toLowerCase().contains(q.toLowerCase())).toList();
+      searchResults = widget.articles.where((a) => a.title.toLowerCase().contains(q.toLowerCase()) || a.content.toLowerCase().contains(q.toLowerCase())).toList();
     });
   }
 
@@ -356,60 +324,52 @@ class _HomeContentViewState extends State<HomeContentView> {
             controller: _searchController,
             onChanged: _handleSearch,
             decoration: InputDecoration(
-              hintText: "Cari judul atau isi notasi...",
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isNotEmpty 
-                  ? IconButton(icon: const Icon(Icons.clear), onPressed: () { _searchController.clear(); _handleSearch(""); }) 
-                  : null,
+              hintText: "Cari judul atau isi...",
+              prefixIcon: const Icon(Icons.search, color: Colors.blue),
               filled: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+              fillColor: widget.isDarkMode ? Colors.white10 : Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
             ),
           ),
         ),
-        Expanded(
-          child: isSearching ? _buildSearchResults() : _buildWelcomePage(),
-        ),
+        Expanded(child: isSearching ? _buildList(searchResults) : _buildWelcome()),
       ],
     );
   }
 
-  Widget _buildWelcomePage() {
+  Widget _buildWelcome() {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
-        Text("Welcome to Sinsangnot", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: widget.isDarkMode ? Colors.greenAccent : Colors.green[900])),
         const SizedBox(height: 10),
+        const Center(child: Text("Welcome to Sinsangnot", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue))),
+        const SizedBox(height: 15),
         const Text(
-          "Sinsangnot adalah perpustakaan digital notasi gending Jawa. "
-          "Temukan ribuan koleksi notasi yang bisa diakses secara cepat dan offline.",
-          style: TextStyle(fontSize: 16, height: 1.5, color: Colors.grey),
+          "Sinsangnot adalah perpustakaan digital notasi gending Jawa. Wadah pelestarian budaya yang menyajikan koleksi notasi secara praktis dan akurat.",
+          textAlign: TextAlign.justify,
+          style: TextStyle(fontSize: 15, height: 1.5, color: Colors.grey),
         ),
-        const SizedBox(height: 30),
-        const Text("Notasi Terbaru:", style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
-        ...widget.articles.take(15).map((a) => _articleTile(a)),
+        const SizedBox(height: 25),
+        const Text("Notasi Terbaru", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const Divider(),
+        _buildList(widget.articles.take(20).toList()),
       ],
     );
   }
 
-  Widget _buildSearchResults() {
-    if (searchResults.isEmpty) return const Center(child: Text("Tidak ada hasil ditemukan."));
+  Widget _buildList(List<Article> list) {
     return ListView.builder(
-      itemCount: searchResults.length,
-      itemBuilder: (context, i) => _articleTile(searchResults[i]),
-    );
-  }
-
-  Widget _articleTile(Article a) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        title: Text(a.title, style: const TextStyle(fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.chevron_right),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: list.length,
+      itemBuilder: (context, i) => ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+        title: Text(list[i].title, style: const TextStyle(fontSize: 14)),
+        trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.blue),
         onTap: () {
           _searchController.clear();
           _handleSearch("");
-          widget.onArticleTap(a);
+          widget.onArticleTap(list[i]);
         },
       ),
     );
