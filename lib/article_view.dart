@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-// Tambahkan import ini untuk menangani gesture
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 
@@ -25,12 +24,10 @@ class _ArticleReaderState extends State<ArticleReader> {
     
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      // Tambahkan ini agar background transparan saat loading
       ..setBackgroundColor(isDark ? const Color(0xFF0A0A0A) : Colors.white)
       ..loadHtmlString(_buildHtml(isDark));
   }
 
-  // Kita gunakan didChangeDependencies untuk memastikan tema terdeteksi dengan benar
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -48,21 +45,28 @@ class _ArticleReaderState extends State<ArticleReader> {
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
-  body {
+  html, body {
     font-family: sans-serif;
     line-height: 1.6;
     color: $textColor;
     background: $bgColor;
-    padding: 18px;
     margin: 0;
-    /* Memastikan body bisa di-scroll secara internal */
-    overflow-y: auto; 
-    -webkit-overflow-scrolling: touch;
+    padding: 18px;
+    
+    /* PERBAIKAN ANTI-GOYANG: */
+    /* Mengunci agar tidak bisa ditarik ke samping (bounce) */
+    overscroll-behavior-x: none; 
+    /* Memberitahu browser hanya proses scroll atas-bawah */
+    touch-action: pan-y; 
+    /* Mencegah konten meluber ke samping */
+    overflow-x: hidden; 
   }
+  
   h1 { color: $accentColor; font-size: 24px; margin-bottom: 5px; }
   .divider { height: 1px; background: orange; margin-bottom: 20px; }
+  
   .lirik, pre {
     background-color: $lirikBg;
     color: $textColor;
@@ -74,12 +78,14 @@ class _ArticleReaderState extends State<ArticleReader> {
     word-break: break-word;
     border-radius: 4px;
   }
+  
   svg {
     max-width: 100%;
     height: auto;
     display: block;
     margin: 15px auto;
   }
+  
   ${isDark ? 'svg { filter: invert(1) hue-rotate(180deg); }' : ''}
   img { max-width: 100%; height: auto; border-radius: 8px; }
 </style>
@@ -109,12 +115,12 @@ class _ArticleReaderState extends State<ArticleReader> {
         ),
         title: const Text("Detail Notasi", style: TextStyle(color: Colors.white, fontSize: 16)),
       ),
-      // Membungkus dengan SafeArea dan memberikan GestureRecognizers
       body: SafeArea(
         child: WebViewWidget(
           controller: controller,
-          // BAGIAN PENTING: Mengizinkan WebView menangani scroll secara vertikal
           gestureRecognizers: {
+            // Hanya mengizinkan tarikan vertikal di dalam WebView
+            // Geseran horizontal akan otomatis dilempar ke PageView/Tab panel Anda
             Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
             Factory<LongPressGestureRecognizer>(() => LongPressGestureRecognizer()),
           },
