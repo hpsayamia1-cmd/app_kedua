@@ -77,7 +77,6 @@ class Article {
   Article({required this.id, required this.title, required this.content});
 }
 
-// --- ROOT NAVIGATION ---
 class RootNavigation extends StatefulWidget {
   final VoidCallback toggleTheme;
   final bool isDarkMode;
@@ -90,7 +89,7 @@ class RootNavigation extends StatefulWidget {
 class _RootNavigationState extends State<RootNavigation> {
   List<Article> allArticles = [];
   bool isLoading = false;
-  bool isPanelMode = false; // Menentukan apakah sedang di mode baca (Panel) atau Beranda Utama
+  bool isPanelMode = false; 
   
   Article? leftSelected;
   Article? rightSelected;
@@ -122,7 +121,6 @@ class _RootNavigationState extends State<RootNavigation> {
       int startIndex = 1;
       int maxResultsPerRequest = 10; 
       bool hasMore = true;
-
       await db.delete('posts'); 
 
       while (hasMore) {
@@ -165,7 +163,6 @@ class _RootNavigationState extends State<RootNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    // Jika data kosong, tampilkan layar download awal
     if (allArticles.isEmpty) return _buildInitialDownload();
 
     return PopScope(
@@ -187,11 +184,10 @@ class _RootNavigationState extends State<RootNavigation> {
     );
   }
 
-  // --- LAYAR BERANDA UTAMA (Layar Tunggal) ---
   Widget _buildMainHome() {
     return Scaffold(
       appBar: AppBar(
-        title: Image.asset('assets/logo.png', height: 40, errorBuilder: (c,e,s) => const Text("SINSANGNOT")),
+        title: const Text("SINSANGNOT", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         actions: [_buildSettingsMenu()],
       ),
       body: HomeContentView(
@@ -202,7 +198,6 @@ class _RootNavigationState extends State<RootNavigation> {
     );
   }
 
-  // --- LAYAR PANEL (Mode Baca) ---
   Widget _buildPanelLayout() {
     Color accentColor = widget.isDarkMode ? Colors.greenAccent : Colors.green[800]!;
 
@@ -213,9 +208,7 @@ class _RootNavigationState extends State<RootNavigation> {
             controller: _pageController,
             onPageChanged: (int page) => setState(() => _currentPage = page),
             children: [
-              // Panel 1: Selalu isi Artikel
               _buildSliverReader(leftSelected!, true),
-              // Panel 2: Artikel jika ada, jika tidak tampilkan Beranda
               rightSelected != null 
                   ? _buildSliverReader(rightSelected!, false)
                   : Scaffold(
@@ -232,25 +225,31 @@ class _RootNavigationState extends State<RootNavigation> {
                     ),
             ],
           ),
-          // Tombol Navigasi Melayang
+          // FIX ERROR: Menggunakan SizedBox untuk mengatur tinggi tombol
           if (_currentPage == 0)
             Positioned(
               top: 100, right: 10,
-              child: FloatingActionButton.extended(
-                heroTag: "btn1",
-                onPressed: () => _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
-                label: const Text("Panel 2"), icon: const Icon(Icons.arrow_forward),
-                backgroundColor: accentColor.withOpacity(0.8), sizeConstraints: const BoxConstraints.tightFor(height: 40),
+              child: SizedBox(
+                height: 40,
+                child: FloatingActionButton.extended(
+                  heroTag: "btn1",
+                  onPressed: () => _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
+                  label: const Text("Panel 2"), icon: const Icon(Icons.arrow_forward),
+                  backgroundColor: accentColor.withOpacity(0.8),
+                ),
               ),
             ),
           if (_currentPage == 1)
             Positioned(
               top: 100, left: 10,
-              child: FloatingActionButton.extended(
-                heroTag: "btn2",
-                onPressed: () => _pageController.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
-                label: const Text("Panel 1"), icon: const Icon(Icons.arrow_back),
-                backgroundColor: accentColor.withOpacity(0.8), sizeConstraints: const BoxConstraints.tightFor(height: 40),
+              child: SizedBox(
+                height: 40,
+                child: FloatingActionButton.extended(
+                  heroTag: "btn2",
+                  onPressed: () => _pageController.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut),
+                  label: const Text("Panel 1"), icon: const Icon(Icons.arrow_back),
+                  backgroundColor: accentColor.withOpacity(0.8),
+                ),
               ),
             ),
         ],
@@ -262,7 +261,10 @@ class _RootNavigationState extends State<RootNavigation> {
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) => [
         SliverAppBar(
-          floating: true, snap: true, pinned: false,
+          // FIX HEADER: floating true tapi snap false agar muncul pelan-pelan mengikuti scroll
+          floating: true, 
+          snap: false, 
+          pinned: false,
           leading: IconButton(icon: const Icon(Icons.home), onPressed: () => setState(() => isPanelMode = false)),
           title: Text(article.title, style: const TextStyle(fontSize: 14)),
           actions: [
@@ -315,7 +317,6 @@ class _RootNavigationState extends State<RootNavigation> {
   }
 }
 
-// --- KOMPONEN ISI BERANDA & PENCARIAN ---
 class HomeContentView extends StatefulWidget {
   final List<Article> articles;
   final Function(Article) onArticleTap;
@@ -337,7 +338,6 @@ class _HomeContentViewState extends State<HomeContentView> {
       setState(() { isSearching = false; searchResults = []; });
       return;
     }
-    // Pencarian Full-Text (Judul + Isi)
     setState(() {
       isSearching = true;
       searchResults = widget.articles.where((a) => 
@@ -381,13 +381,13 @@ class _HomeContentViewState extends State<HomeContentView> {
         const SizedBox(height: 10),
         const Text(
           "Sinsangnot adalah perpustakaan digital notasi gending Jawa. "
-          "Temukan ribuan koleksi notasi yang bisa diakses secara cepat dan offline untuk melestarikan budaya karawitan.",
+          "Temukan ribuan koleksi notasi yang bisa diakses secara cepat dan offline.",
           style: TextStyle(fontSize: 16, height: 1.5, color: Colors.grey),
         ),
         const SizedBox(height: 30),
         const Text("Notasi Terbaru:", style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-        ...widget.articles.take(10).map((a) => _articleTile(a)),
+        ...widget.articles.take(15).map((a) => _articleTile(a)),
       ],
     );
   }
