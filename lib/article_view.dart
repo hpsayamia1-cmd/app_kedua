@@ -23,8 +23,6 @@ class ArticleReader extends StatelessWidget {
         ),
         title: const Text("Detail Notasi", style: TextStyle(color: Colors.white, fontSize: 16)),
       ),
-      // OPTIMASI 1: Kita hapus SelectionArea terluar. 
-      // Untuk artikel berisi notasi panjang, ini adalah beban performa terbesar.
       body: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
         padding: const EdgeInsets.all(18),
@@ -43,34 +41,37 @@ class ArticleReader extends StatelessWidget {
 
             HtmlWidget(
               content,
-              // OPTIMASI 2: Aktifkan seleksi internal HtmlWidget (lebih ringan dari SelectionArea)
               textStyle: TextStyle(
                 color: isDarkMode ? Colors.white : Colors.black87,
                 fontSize: 16,
               ),
               customWidgetBuilder: (element) {
                 if (element.localName == 'svg') {
-                  String svgCode = element.outerHtml;
-
                   return Container(
                     width: double.infinity,
                     margin: const EdgeInsets.symmetric(vertical: 10),
-                    // OPTIMASI 3: Gunakan ClipRect saja tanpa RepaintBoundary untuk SVG yang sangat panjang.
-                    // RepaintBoundary pada gambar yang terlalu tinggi justru bisa bikin lag karena limit memori GPU.
-                    child: ColorFiltered(
-                      colorFilter: isDarkMode
-                          ? const ColorFilter.matrix([
-                              -1, 0, 0, 0, 255, 
-                              0, -1, 0, 0, 255, 
-                              0, 0, -1, 0, 255, 
-                              0, 0, 0, 1, 0,    
-                            ])
-                          : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-                      child: FittedBox(
-                        fit: BoxFit.contain, 
-                        alignment: Alignment.center,
-                        child: ClipRect(
-                          child: HtmlWidget(svgCode),
+                    // TRICK FINAL: IgnorePointer mematikan semua deteksi sentuhan di SVG
+                    // Ini membuat CPU tidak perlu menghitung koordinat di dalam SVG saat scroll
+                    child: IgnorePointer(
+                      child: RepaintBoundary(
+                        child: ColorFiltered(
+                          colorFilter: isDarkMode
+                              ? const ColorFilter.matrix([
+                                  -1, 0, 0, 0, 255, 
+                                  0, -1, 0, 0, 255, 
+                                  0, 0, -1, 0, 255, 
+                                  0, 0, 0, 1, 0,    
+                                ])
+                              : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                          child: FittedBox(
+                            fit: BoxFit.contain,
+                            alignment: Alignment.center,
+                            child: HtmlWidget(
+                              element.outerHtml,
+                              // Render Mode paling ringan
+                              renderMode: RenderMode.column,
+                            ),
+                          ),
                         ),
                       ),
                     ),
