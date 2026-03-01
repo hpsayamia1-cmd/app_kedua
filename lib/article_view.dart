@@ -2,19 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as p;
+import 'dart:convert';
 
 class ArticleReader extends StatefulWidget {
+  final String id;
   final String title;
   final String content;
-  final String url; // URL asli blog untuk tracking view
+  final String url;
+  final List<String> labels; // Tambahan untuk simpan label offline
   final VoidCallback onClose;
   final VoidCallback onLoadStart;
   final VoidCallback onLoadEnd;
 
   ArticleReader({
-    required this.title, 
-    required this.content, 
+    required this.id,
+    required this.title,
+    required this.content,
     required this.url,
+    required this.labels,
     required this.onClose,
     required this.onLoadStart,
     required this.onLoadEnd,
@@ -30,6 +37,10 @@ class _ArticleReaderState extends State<ArticleReader> {
   @override
   void initState() {
     super.initState();
+    _initWebView();
+  }
+
+  void _initWebView() {
     final bool isDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
     
     controller = WebViewController()
@@ -40,7 +51,6 @@ class _ArticleReaderState extends State<ArticleReader> {
           onPageStarted: (url) => widget.onLoadStart(),
           onPageFinished: (url) {
             widget.onLoadEnd();
-            // Injeksi CSS untuk hapus header/footer blog jika memuat URL asli
             _injectCleanStyle();
           },
         ),
@@ -74,33 +84,59 @@ class _ArticleReaderState extends State<ArticleReader> {
     background: $bgColor;
     margin: 0;
     padding: 15px;
-    overscroll-behavior-y: contain; 
   }
-  
-  /* Hilangkan divider dan judul karena sudah ada di header aplikasi */
-  
+  h1 { font-size: 22px; color: #FF0000; margin-bottom: 10px; padding-top: 10px; }
   .lirik, pre {
     background-color: $lirikBg;
     color: $textColor;
     padding: 15px;
-    border-left: 4px solid #FF0000; /* Merah YouTube */
-    margin: 10px 0;
-    font-size: 14px;
+    border-left: 5px solid #FF0000;
+    margin: 15px 0;
+    font-size: 15px;
     white-space: pre-wrap;
     word-break: break-word;
-    border-radius: 2px;
+    border-radius: 4px;
   }
-  
-  img { max-width: 100%; height: auto; border-radius: 4px; margin: 10px 0; }
-  iframe { max-width: 100%; height: auto; }
+  svg { max-width: 100% !important; height: auto !important; display: block; margin: 20px auto; }
+  ${isDark ? 'svg { filter: invert(1) hue-rotate(180deg); }' : ''}
+  img { max-width: 100%; height: auto; border-radius: 8px; }
 </style>
 </head>
 <body>
+  <h1>${widget.title}</h1>
   ${widget.content}
   <div style="height: 100px;"></div> 
 </body>
 </html>
 """;
+  }
+
+  Future<void> _saveOffline() async {
+    try {
+      final dbPath = await getDatabasesPath();
+      // Pastikan versi database sesuai dengan main.dart (v3)
+      final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 3);
+      
+      await db.insert('offline_posts', {
+        'id': widget.id,
+        'title': widget.title,
+        'content': widget.content,
+        'url': widget.url,
+        'labels': json.encode(widget.labels) // Simpan label sebagai JSON string
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Berhasil disimpan ke Koleksi"), 
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Gagal menyimpan")),
+      );
+    }
   }
 
   @override
@@ -109,7 +145,15 @@ class _ArticleReaderState extends State<ArticleReader> {
 
     return Scaffold(
       backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      // Kita tidak pakai AppBar di sini karena sudah ada Header di main.dart
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: widget.onClose,
+        ),
+        title: Text(widget.title, style: const TextStyle(fontSize: 14)),
+        centerTitle: false,
+        elevation: 0,
+      ),
       body: WebViewWidget(
         controller: controller,
         gestureRecognizers: {
@@ -117,14 +161,11 @@ class _ArticleReaderState extends State<ArticleReader> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Berhasil disimpan ke Koleksi Offline")),
-          );
-        },
+        onPressed: _saveOffline,
         backgroundColor: Colors.red,
-        icon: const Icon(Icons.download, color: Colors.white),
-        label: const Text("Download", style: TextStyle(color: Colors.white)),
+        elevation: 4,
+        icon: const Icon(Icons.download_for_offline, color: Colors.white),
+        label: const Text("Simpan Offline", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
