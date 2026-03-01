@@ -41,7 +41,6 @@ class _ArticleReaderState extends State<ArticleReader> {
   }
 
   void _initWebView() {
-    // Mengambil brightness langsung dari context agar akurat dengan tema aplikasi
     final bool isDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
     
     controller = WebViewController()
@@ -52,19 +51,10 @@ class _ArticleReaderState extends State<ArticleReader> {
           onPageStarted: (url) => widget.onLoadStart(),
           onPageFinished: (url) {
             widget.onLoadEnd();
-            _injectCleanStyle();
           },
         ),
       )
       ..loadHtmlString(_buildHtml(isDark));
-  }
-
-  void _injectCleanStyle() {
-    controller.runJavaScript("""
-      var style = document.createElement('style');
-      style.innerHTML = '.header-outer, .nav-outer, .footer-outer, #header, #footer, .sidebar, .post-title, .entry-title { display: none !important; } body { padding: 10px !important; }';
-      document.head.appendChild(style);
-    """);
   }
 
   String _buildHtml(bool isDark) {
@@ -84,9 +74,10 @@ class _ArticleReaderState extends State<ArticleReader> {
     color: $textColor;
     background: $bgColor;
     margin: 0;
-    padding: 15px;
+    padding: 10px; /* Padding lebih kecil agar lebih lega */
+    overflow-x: hidden;
   }
-  h1 { font-size: 20px; color: #FF0000; margin-bottom: 10px; padding-top: 5px; font-weight: bold; }
+  /* POIN: Judul H1 dihapus dari sini agar tampilan clean */
   .lirik, pre {
     background-color: $lirikBg;
     color: $textColor;
@@ -98,38 +89,25 @@ class _ArticleReaderState extends State<ArticleReader> {
     word-break: break-word;
     border-radius: 4px;
   }
-  svg { max-width: 100% !important; height: auto !important; display: block; margin: 20px auto; }
+  svg { max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; }
   ${isDark ? 'svg { filter: invert(1) hue-rotate(180deg); }' : ''}
   img { max-width: 100%; height: auto; border-radius: 8px; }
+  /* Menghilangkan elemen blogger yang mungkin ikut terbawa */
+  .header-outer, .nav-outer, .footer-outer, .post-title, .entry-title { display: none !important; }
 </style>
 </head>
 <body>
-  <h1>${widget.title}</h1>
   ${widget.content}
-  <div style="height: 100px;"></div> 
+  <div style="height: 80px;"></div> 
 </body>
 </html>
 """;
   }
 
-  // PERBAIKAN POIN 5: Logika Simpan Offline yang lebih kuat
   Future<void> _saveOffline() async {
     try {
       final dbPath = await getDatabasesPath();
-      final db = await openDatabase(
-        p.join(dbPath, 'puska.db'), 
-        version: 3,
-        onCreate: (db, version) async {
-          await db.execute(
-            'CREATE TABLE IF NOT EXISTS offline_posts (id TEXT PRIMARY KEY, title TEXT, content TEXT, url TEXT, labels TEXT)'
-          );
-        },
-        onUpgrade: (db, oldV, newV) async {
-          if (oldV < 3) {
-            await db.execute("ALTER TABLE offline_posts ADD COLUMN labels TEXT");
-          }
-        }
-      );
+      final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 3);
       
       await db.insert('offline_posts', {
         'id': widget.id,
@@ -143,19 +121,12 @@ class _ArticleReaderState extends State<ArticleReader> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Berhasil disimpan ke Koleksi"), 
-          backgroundColor: Colors.green,
+          backgroundColor: Colors.red, // Samakan dengan tema YouTube
           behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
         ),
       );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Gagal menyimpan: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      debugPrint("Save error: $e");
     }
   }
 
@@ -165,29 +136,18 @@ class _ArticleReaderState extends State<ArticleReader> {
 
     return Scaffold(
       backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      // AppBar disesuaikan agar serasi dengan header YouTube di main.dart
-      appBar: AppBar(
-        backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: widget.onClose,
-        ),
-        title: Text(widget.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-        centerTitle: false,
-        elevation: 0,
-      ),
+      // POIN: AppBar dihilangkan agar Header di main.dart yang mengambil alih
       body: WebViewWidget(
         controller: controller,
         gestureRecognizers: {
           Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: _saveOffline,
         backgroundColor: Colors.red,
-        elevation: 4,
-        icon: const Icon(Icons.download_for_offline, color: Colors.white),
-        label: const Text("Simpan Offline", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        mini: true, // Ukuran mini agar tidak mengganggu notasi
+        child: const Icon(Icons.download_for_offline, color: Colors.white),
       ),
     );
   }
