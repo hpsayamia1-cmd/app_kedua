@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:xml/xml.dart' as xml; // Tambahkan package xml di pubspec.yaml
+import 'package:xml/xml.dart' as xml;
 import 'article_view.dart';
 
 void main() {
@@ -97,6 +97,9 @@ class _RootNavigationState extends State<RootNavigation> {
   String? nextPageToken;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  
+  // FIX POIN 1: Tambahkan FocusNode agar keyboard tidak close otomatis
+  final FocusNode _searchFocusNode = FocusNode();
 
   final String blogId = "1371452320359744712";
   final String apiKey = "AIzaSyAiBqwqM8EwffLlkslJyLBjSkCWF8DpwDQ";
@@ -111,16 +114,19 @@ class _RootNavigationState extends State<RootNavigation> {
     _scrollController.addListener(_scrollListener);
   }
 
+  @override
+  void dispose() {
+    _searchFocusNode.dispose(); // Membersihkan memori
+    super.dispose();
+  }
+
   void _scrollListener() {
-    // Memperbaiki deteksi scroll agar tidak macet di artikel 30
     if (_scrollController.offset >= _scrollController.position.maxScrollExtent - 200) {
       if (!isLoadingMore && nextPageToken != null && _searchController.text.isEmpty && _currentTab == 0 && selectedArticle == null) {
         _fetchMoreFeed();
       }
     }
   }
-
-  // --- LOGIKA DATA ---
 
   Future<void> _fetchSitemap() async {
     try {
@@ -133,7 +139,6 @@ class _RootNavigationState extends State<RootNavigation> {
           String url = element.innerText;
           if (url.contains(".html")) {
             String slug = url.split('/').last.replaceAll(".html", "");
-            // LOGIKA REVISI: Hapus _ dan angka setelahnya, ganti - jadi spasi
             String cleanTitle = slug.split('_').first.replaceAll('-', ' ');
             temp.add({'title': cleanTitle, 'url': url});
           }
@@ -145,13 +150,16 @@ class _RootNavigationState extends State<RootNavigation> {
 
   Future<void> _fetchInitialFeed() async {
     setState(() { isInitialLoading = true; isOffline = false; });
-    // Poin 8: Turunkan maxResults ke 8 agar enteng
     final url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?key=$apiKey&maxResults=8"; 
     try {
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         List<Article> fetched = _parseArticles(data['items']);
+        
+        // Pemanis: Kembalikan fungsi Acak (Shuffle)
+        fetched.shuffle(); 
+        
         setState(() {
           feedArticles = fetched;
           nextPageToken = data['nextPageToken'];
@@ -184,25 +192,26 @@ class _RootNavigationState extends State<RootNavigation> {
   }
 
   Future<void> _handleSearch(String q, {String? label}) async {
-    if (q.isEmpty && label == null) return;
     setState(() {
       isSearching = true; 
-      filteredSuggestions = []; // Tutup rekomendasi
+      filteredSuggestions = []; 
       selectedArticle = null;
+      _searchFocusNode.unfocus(); // Tutup keyboard hanya setelah "Go" atau pilih label
     });
 
     try {
-      // Poin 7: Gunakan query label yang lebih tepat
+      // FIX POIN 4: Gunakan query labels= sesuai cara kerja blog kamu
       String url = label != null 
-          ? "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?q=label:\"$label\"&key=$apiKey"
+          ? "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?labels=${Uri.encodeComponent(label)}&key=$apiKey"
           : "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
           
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
-        setState(() => searchResults = _parseArticles(data['items']));
-      } else {
-        setState(() => searchResults = []);
+        setState(() {
+          searchResults = _parseArticles(data['items']);
+          _currentTab = 0; // Kembali ke beranda untuk lihat hasil
+        });
       }
     } catch (e) {
       setState(() {
@@ -216,7 +225,6 @@ class _RootNavigationState extends State<RootNavigation> {
     setState(() => isSearching = false);
   }
 
-  // Fungsi untuk buka artikel dari sitemap (instan)
   Future<void> _openFromSitemap(String url) async {
     setState(() { isSearching = true; filteredSuggestions = []; });
     try {
@@ -226,6 +234,7 @@ class _RootNavigationState extends State<RootNavigation> {
         setState(() {
           selectedArticle = _parseArticles([data]).first;
           _searchController.clear();
+          _searchFocusNode.unfocus(); // Keyboard tutup setelah artikel terbuka
         });
       }
     } catch (e) { debugPrint("Direct open error: $e"); }
@@ -255,6 +264,7 @@ class _RootNavigationState extends State<RootNavigation> {
 
   void _resetSearch() {
     _searchController.clear();
+    _searchFocusNode.unfocus();
     setState(() {
       searchResults = [];
       filteredSuggestions = [];
@@ -267,7 +277,7 @@ class _RootNavigationState extends State<RootNavigation> {
     return WillPopScope(
       onWillPop: () async {
         if (selectedArticle != null) { 
-          _resetSearch(); // Poin 1 & 11: Pastikan bersih saat back
+          _resetSearch(); 
           setState(() => selectedArticle = null); 
           return false; 
         }
@@ -282,7 +292,6 @@ class _RootNavigationState extends State<RootNavigation> {
         return true;
       },
       child: Scaffold(
-        // Poin 3: Hapus NestedScrollView agar tidak lag
         appBar: AppBar(
           title: _buildYouTubeHeader(),
           elevation: 0,
@@ -302,7 +311,7 @@ class _RootNavigationState extends State<RootNavigation> {
                 content: selectedArticle!.content, url: selectedArticle!.url,
                 labels: selectedArticle!.labels,
                 onClose: () {
-                  _resetSearch(); // Bersihkan saat tutup lewat tombol close
+                  _resetSearch();
                   setState(() => selectedArticle = null);
                 },
                 onLoadStart: () => {}, 
@@ -334,6 +343,7 @@ class _RootNavigationState extends State<RootNavigation> {
               borderRadius: BorderRadius.circular(20)),
             child: TextField(
               controller: _searchController,
+              focusNode: _searchFocusNode, // FIX: Kunci fokus di sini agar keyboard tidak lari
               onChanged: (val) {
                 setState(() {
                   if (val.isEmpty) {
@@ -371,7 +381,7 @@ class _RootNavigationState extends State<RootNavigation> {
         shrinkWrap: true,
         itemCount: filteredSuggestions.length,
         itemBuilder: (c, i) => ListTile(
-          dense: true, // Poin 14: Kecil aja
+          dense: true,
           leading: const Icon(Icons.history, size: 18),
           title: Text(filteredSuggestions[i]['title']!, style: const TextStyle(fontSize: 13)),
           onTap: () => _openFromSitemap(filteredSuggestions[i]['url']!),
@@ -387,12 +397,8 @@ class _RootNavigationState extends State<RootNavigation> {
       selectedItemColor: widget.isDarkMode ? Colors.white : Colors.black,
       unselectedItemColor: Colors.grey,
       onTap: (i) {
-        // Poin 2: Klik menu bawah otomatis tutup artikel & bersih-bersih
         _resetSearch();
-        setState(() {
-          _currentTab = i;
-          selectedArticle = null;
-        });
+        setState(() { _currentTab = i; selectedArticle = null; });
         if (i == 2) _loadOfflineData();
       },
       items: const [
@@ -406,13 +412,8 @@ class _RootNavigationState extends State<RootNavigation> {
 
   Widget _buildTabContent() {
     if (isInitialLoading || isSearching) {
-      return const Center(child: Padding(
-        padding: EdgeInsets.all(50),
-        child: CircularProgressIndicator(color: Colors.red),
-      ));
+      return const Center(child: CircularProgressIndicator(color: Colors.red));
     }
-    
-    // Poin 8: Handling Offline
     if (isOffline && _currentTab == 0) {
       return Center(
         child: Padding(
@@ -422,11 +423,8 @@ class _RootNavigationState extends State<RootNavigation> {
             children: [
               const Icon(Icons.wifi_off, size: 80, color: Colors.grey),
               const SizedBox(height: 16),
-              const Text(
-                "Maaf anda sedang offline. Silakan periksa koneksi internet anda atau buka KOLEKSI untuk melihat notasi yang anda download",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
+              const Text("Maaf anda sedang offline. Silakan buka KOLEKSI untuk melihat notasi download.",
+                textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 16)),
               const SizedBox(height: 20),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -440,9 +438,7 @@ class _RootNavigationState extends State<RootNavigation> {
     }
 
     switch (_currentTab) {
-      case 0: 
-        final list = _searchController.text.isNotEmpty ? searchResults : feedArticles;
-        return _buildArticleList(list);
+      case 0: return _buildArticleList(_searchController.text.isNotEmpty ? searchResults : feedArticles);
       case 1: return _buildJelajah();
       case 2: return _buildArticleList(offlineArticles, isOfflineTab: true);
       case 3: return _buildSetelan();
@@ -452,49 +448,24 @@ class _RootNavigationState extends State<RootNavigation> {
 
   Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
     if (list.isEmpty) {
-      return ListView(
-        children: [
-          SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-          Center(
-            child: Column(
-              children: [
-                Icon(isOfflineTab ? Icons.cloud_off : Icons.search_off, size: 60, color: Colors.grey),
-                const SizedBox(height: 10),
-                Text(
-                  isOfflineTab 
-                    ? "Belum ada koleksi tersimpan." 
-                    : "Tidak ditemukan hasil.",
-                  style: const TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
+      return Center(child: Text(isOfflineTab ? "Belum ada koleksi." : "Hasil tidak ditemukan."));
     }
     return ListView.builder(
       controller: _currentTab == 0 ? _scrollController : null,
-      padding: EdgeInsets.zero,
       itemCount: list.length + (isLoadingMore ? 1 : 0),
       itemBuilder: (c, i) {
         if (i == list.length) return const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: Colors.red)));
         final a = list[i];
         return Column(
           children: [
-            InkWell(
-              onTap: () => setState(() => selectedArticle = a),
-              child: _getThumbnail(a.content),
-            ),
+            InkWell(onTap: () => setState(() => selectedArticle = a), child: _getThumbnail(a.content)),
             ListTile(
               onTap: () => setState(() => selectedArticle = a),
               leading: const CircleAvatar(backgroundColor: Colors.red, child: Icon(Icons.music_note, color: Colors.white, size: 20)),
               title: Text(a.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
               subtitle: Text(isOfflineTab ? "Tersedia Offline" : "Sinsangnot • ${a.labels.isNotEmpty ? a.labels.first : 'Gending'}"),
               trailing: isOfflineTab 
-                ? IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.grey),
-                    onPressed: () => _confirmDelete(a), // Poin 9: Hapus koleksi
-                  )
+                ? IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _confirmDelete(a))
                 : const Icon(Icons.more_vert, size: 18),
             ),
             const SizedBox(height: 12),
@@ -504,92 +475,114 @@ class _RootNavigationState extends State<RootNavigation> {
     );
   }
 
-  // Fungsi konfirmasi hapus
   void _confirmDelete(Article a) {
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text("Hapus Koleksi?"),
-        content: Text("Hapus '${a.title}' dari penyimpanan offline?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")),
-          TextButton(
-            onPressed: () async {
-              final dbPath = await getDatabasesPath();
-              final db = await openDatabase(p.join(dbPath, 'puska.db'));
-              await db.delete('offline_posts', where: 'id = ?', whereArgs: [a.id]);
-              Navigator.pop(c);
-              _loadOfflineData();
-            }, 
-            child: const Text("Hapus", style: TextStyle(color: Colors.red))
-          ),
-        ],
-      )
-    );
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: const Text("Hapus Koleksi?"),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")),
+        TextButton(onPressed: () async {
+          final db = await openDatabase(p.join(await getDatabasesPath(), 'puska.db'));
+          await db.delete('offline_posts', where: 'id = ?', whereArgs: [a.id]);
+          Navigator.pop(c); _loadOfflineData();
+        }, child: const Text("Hapus", style: TextStyle(color: Colors.red))),
+      ],
+    ));
   }
 
   Widget _getThumbnail(String content) {
     RegExp exp = RegExp(r"<svg[\s\S]*?<\/svg>");
     Iterable<RegExpMatch> matches = exp.allMatches(content);
     return Container(
-      width: double.infinity, height: 200,
-      color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
+      width: double.infinity, height: 200, color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
       child: matches.isNotEmpty 
-        ? ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.topCenter, maxHeight: 600,
-              child: SvgPicture.string(matches.first.group(0)!, 
-                width: MediaQuery.of(context).size.width,
-                colorFilter: widget.isDarkMode ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null,
-              ),
-            ),
-          )
+        ? ClipRect(child: OverflowBox(alignment: Alignment.topCenter, maxHeight: 600, child: SvgPicture.string(matches.first.group(0)!, colorFilter: widget.isDarkMode ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null)))
         : const Icon(Icons.music_video, size: 50, color: Colors.red),
     );
   }
 
-  // --- UI LAINNYA ---
+  // FIX POIN 4 & PEMANIS: Jelajah dengan gaya lingkaran dari blogmu
   Widget _buildJelajah() {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Kategori Gending", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 12, runSpacing: 12,
-              children: gendingLabels.map((label) => InkWell(
-                onTap: () => _handleSearch("", label: label),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.red, borderRadius: BorderRadius.circular(25),
-                  ),
-                  child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Kategori Gending", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 20, runSpacing: 25,
+            children: gendingLabels.map((l) {
+              // Logika Inisial dari blogmu: Ambil angka setelah tanda strip (-)
+              String displayChar = l.contains('-') ? l.split('-').last : l[0];
+              return InkWell(
+                onTap: () => _handleSearch("", label: l),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 30, backgroundColor: Colors.red,
+                      child: Text(displayChar, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(l, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
                 ),
-              )).toList(),
-            ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // FIX: Mengembalikan menu Tentang, Privacy, Disclaimer, Donasi yang hilang
+  Widget _buildSetelan() {
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      children: [
+        SwitchListTile(
+          title: const Text("Tema Gelap"), secondary: const Icon(Icons.dark_mode),
+          value: widget.isDarkMode, onChanged: (v) => widget.updateTheme(v),
+        ),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.info_outline), title: const Text("Tentang Sinsangnot"), 
+          onTap: () => _showInternalPage("Tentang", "Sinsangnot adalah perpustakaan digital notasi gending Jawa berkualitas tinggi."),
+        ),
+        ListTile(
+          leading: const Icon(Icons.verified_user_outlined), title: const Text("Privacy Policy"), 
+          onTap: () => _showInternalPage("Privacy", "Kami menjamin data koleksi offline Anda tersimpan aman secara lokal."),
+        ),
+        ListTile(
+          leading: const Icon(Icons.gavel_outlined), title: const Text("Disclaimer"), 
+          onTap: () => _showInternalPage("Disclaimer", "Seluruh notasi adalah hasil digitalisasi kreatif untuk tujuan pelestarian budaya."),
+        ),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.favorite, color: Colors.red), 
+          title: const Text("Donasi Kreator"), subtitle: const Text("Dukung pelestarian notasi Jawa"),
+          onTap: () => launchUrl(Uri.parse("https://link.dana.id/qr/MASUKKAN_ID_DANA_KAMU")), 
+        ),
+      ],
+    );
+  }
+
+  void _showInternalPage(String title, String content) {
+    showModalBottomSheet(
+      context: context, isScrollControlled: true,
+      backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24), height: MediaQuery.of(context).size.height * 0.5,
+        child: Column(
+          children: [
+            Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red)),
+            const SizedBox(height: 15),
+            Expanded(child: SingleChildScrollView(child: Text(content, style: const TextStyle(fontSize: 16, height: 1.5)))),
+            const SizedBox(height: 20),
+            SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text("Tutup", style: TextStyle(color: Colors.white))))
           ],
         ),
       ),
     );
   }
-
-  Widget _buildSetelan() {
-    return ListView(
-      children: [
-        SwitchListTile(
-          title: const Text("Tema Gelap"),
-          value: widget.isDarkMode,
-          onChanged: (v) => widget.updateTheme(v),
-        ),
-        // ... (sisanya tetap sama)
-      ],
-    );
-  }
-
-  void _showInternalPage(String title, String content) { /* Tetap sama seperti kodemu */ }
 }

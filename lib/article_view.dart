@@ -40,7 +40,18 @@ class _ArticleReaderState extends State<ArticleReader> {
     _initWebView();
   }
 
+  // FIX POIN 2: PENTING! Supaya konten berubah saat klik rekomendasi/sitemap
+  @override
+  void didUpdateWidget(ArticleReader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.id != widget.id || oldWidget.content != widget.content) {
+      final bool isDark = Theme.of(context).brightness == Brightness.dark;
+      controller.loadHtmlString(_buildHtml(isDark));
+    }
+  }
+
   void _initWebView() {
+    // Menggunakan dispatcher untuk cek mode awal
     final bool isDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
     
     controller = WebViewController()
@@ -49,9 +60,7 @@ class _ArticleReaderState extends State<ArticleReader> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) => widget.onLoadStart(),
-          onPageFinished: (url) {
-            widget.onLoadEnd();
-          },
+          onPageFinished: (url) => widget.onLoadEnd(),
         ),
       )
       ..loadHtmlString(_buildHtml(isDark));
@@ -74,10 +83,25 @@ class _ArticleReaderState extends State<ArticleReader> {
     color: $textColor;
     background: $bgColor;
     margin: 0;
-    padding: 10px; /* Padding lebih kecil agar lebih lega */
+    padding: 12px;
     overflow-x: hidden;
   }
-  /* POIN: Judul H1 dihapus dari sini agar tampilan clean */
+
+  /* FIX POIN: Menghilangkan Judul Bawaan Blogger sesuai request kamu */
+  .post-title-full, 
+  h1.post-title, 
+  .entry-title, 
+  .post-header,
+  .header-outer, 
+  .nav-outer, 
+  .footer-outer { 
+    display: none !important; 
+    visibility: hidden !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   .lirik, pre {
     background-color: $lirikBg;
     color: $textColor;
@@ -89,21 +113,28 @@ class _ArticleReaderState extends State<ArticleReader> {
     word-break: break-word;
     border-radius: 4px;
   }
-  svg { max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; }
+
+  /* Pengaturan SVG agar pas di layar HP */
+  svg { 
+    max-width: 100% !important; 
+    height: auto !important; 
+    display: block; 
+    margin: 10px auto; 
+  }
   ${isDark ? 'svg { filter: invert(1) hue-rotate(180deg); }' : ''}
+  
   img { max-width: 100%; height: auto; border-radius: 8px; }
-  /* Menghilangkan elemen blogger yang mungkin ikut terbawa */
-  .header-outer, .nav-outer, .footer-outer, .post-title, .entry-title { display: none !important; }
 </style>
 </head>
 <body>
   ${widget.content}
-  <div style="height: 80px;"></div> 
+  <div style="height: 100px;"></div> 
 </body>
 </html>
 """;
   }
 
+  // FIX POIN 3: Tombol Download/Simpan Berfungsi
   Future<void> _saveOffline() async {
     try {
       final dbPath = await getDatabasesPath();
@@ -120,9 +151,16 @@ class _ArticleReaderState extends State<ArticleReader> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Berhasil disimpan ke Koleksi"), 
-          backgroundColor: Colors.red, // Samakan dengan tema YouTube
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 10),
+              Text("Berhasil disimpan ke Koleksi"),
+            ],
+          ),
+          backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
         ),
       );
     } catch (e) {
@@ -136,17 +174,18 @@ class _ArticleReaderState extends State<ArticleReader> {
 
     return Scaffold(
       backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      // POIN: AppBar dihilangkan agar Header di main.dart yang mengambil alih
       body: WebViewWidget(
         controller: controller,
         gestureRecognizers: {
+          // Tetap bisa scroll meskipun di dalam WebView
           Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _saveOffline,
         backgroundColor: Colors.red,
-        mini: true, // Ukuran mini agar tidak mengganggu notasi
+        mini: true, 
+        tooltip: "Simpan Offline",
         child: const Icon(Icons.download_for_offline, color: Colors.white),
       ),
     );
