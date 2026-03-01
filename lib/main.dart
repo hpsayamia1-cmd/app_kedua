@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart'; 
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/rendering.dart';
 import 'article_view.dart'; 
 
 void main() {
@@ -34,7 +36,7 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
     });
   }
 
-  Future<void> _toggleTheme() async {
+  void _toggleTheme() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _themeMode = (_themeMode == ThemeMode.light) ? ThemeMode.dark : ThemeMode.light;
@@ -49,16 +51,13 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
       themeMode: _themeMode,
       theme: ThemeData(
         brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF0F4F8), // Biru sangat muda
-        primaryColor: Colors.blue[800],
-        appBarTheme: const AppBarTheme(backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 1),
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.light),
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(backgroundColor: Colors.white, elevation: 0),
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF010A01),
-        primaryColor: Colors.blueAccent,
-        appBarTheme: const AppBarTheme(backgroundColor: Colors.black, foregroundColor: Colors.white, elevation: 0),
+        scaffoldBackgroundColor: const Color(0xFF0F0F0F),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF0F0F0F), elevation: 0),
       ),
       home: RootNavigation(toggleTheme: _toggleTheme, isDarkMode: _themeMode == ThemeMode.dark),
     );
@@ -66,10 +65,9 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
 }
 
 class Article {
-  final String id, title, content;
-  Article({required this.id, required this.title, required this.content});
+  final String id, title, content, url;
+  Article({required this.id, required this.title, required this.content, required this.url});
 }
-
 class RootNavigation extends StatefulWidget {
   final VoidCallback toggleTheme;
   final bool isDarkMode;
@@ -80,298 +78,229 @@ class RootNavigation extends StatefulWidget {
 }
 
 class _RootNavigationState extends State<RootNavigation> {
+  int _currentTab = 0; // 0: Home, 1: Jelajah, 2: Koleksi, 3: Setelan, 99: Search
+  Article? selectedArticle;
   List<Article> allArticles = [];
-  bool isLoading = false;
-  bool isPanelMode = false;
-  Article? leftSelected;
-  Article? rightSelected;
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
+  List<Article> searchSuggestions = [];
+  bool isPageLoading = false;
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+
+  final ScrollController _scrollController = ScrollController();
+  double _headerOffset = 0.0;
+  final double _headerHeight = 60.0;
 
   @override
   void initState() {
     super.initState();
     _refreshLocal();
+    _scrollController.addListener(_updateHeaderOffset);
+  }
+
+  void _updateHeaderOffset() {
+    if (!_scrollController.hasClients) return;
+    double delta = _scrollController.position.userScrollDirection == ScrollDirection.reverse ? 1.5 : -1.5;
+    setState(() {
+      _headerOffset = (_headerOffset + delta).clamp(0.0, _headerHeight);
+    });
   }
 
   Future<void> _refreshLocal() async {
     final dbPath = await getDatabasesPath();
-    final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 1, onCreate: (db, v) {
-      db.execute("CREATE TABLE posts(id TEXT PRIMARY KEY, title TEXT, content TEXT)");
-    });
+    final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 1);
     final List<Map<String, dynamic>> maps = await db.query('posts');
     setState(() {
-      allArticles = maps.map((e) => Article(id: e['id'], title: e['title'], content: e['content'])).toList();
+      allArticles = maps.map((e) => Article(
+        id: e['id'], title: e['title'], content: e['content'],
+        url: e['url'] ?? "https://sinsangnot.blogspot.com"
+      )).toList();
     });
   }
 
-  Future<void> syncData() async {
-    setState(() => isLoading = true);
-    try {
-      final dbPath = await getDatabasesPath();
-      final db = await openDatabase(p.join(dbPath, 'puska.db'));
-      int startIndex = 1;
-      int maxResultsPerRequest = 5; // Kembali ke 5 agar stabil
-      bool hasMore = true;
-
-      await db.delete('posts'); 
-
-      while (hasMore) {
-        final url = 'https://sinsangnot.blogspot.com/feeds/posts/default?alt=json&start-index=$startIndex&max-results=$maxResultsPerRequest&orderby=published';
-        final res = await http.get(Uri.parse(url));
-        if (res.statusCode == 200) {
-          final data = json.decode(res.body);
-          final List entries = data['feed']['entry'] ?? [];
-          if (entries.isEmpty) {
-            hasMore = false; 
-          } else {
-            for (var e in entries) {
-              String fullContent = e['content'] != null ? e['content']['\$t'] : "";
-              if (fullContent.isEmpty && e['summary'] != null) fullContent = e['summary']['\$t'];
-              await db.insert('posts', {'id': e['id']['\$t'], 'title': e['title']['\$t'], 'content': fullContent}, conflictAlgorithm: ConflictAlgorithm.replace);
-            }
-            if (entries.length < maxResultsPerRequest) {
-              hasMore = false;
-            } else {
-              startIndex += maxResultsPerRequest;
-              await Future.delayed(const Duration(seconds: 1)); // Delay biar gak diblokir
-            }
-          }
-        } else { hasMore = false; }
-      }
-      await _refreshLocal();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Sinkron.")));
-    }
-    setState(() => isLoading = false);
+  void _onSearchChanged(String q) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (q.isEmpty) { setState(() => searchSuggestions = []); return; }
+      setState(() {
+        _currentTab = 0; // Reset tab ke home saat mengetik saran
+        searchSuggestions = allArticles
+            .where((a) => a.title.toLowerCase().contains(q.toLowerCase()))
+            .take(5).toList();
+      });
+    });
   }
 
-  void _openArticle(Article article) {
+  void _performFullSearch(String query) {
+    if (query.isEmpty) return;
     setState(() {
-      leftSelected = article;
-      isPanelMode = true;
+      searchSuggestions = [];
+      _currentTab = 99; // Masuk ke mode hasil pencarian penuh
     });
+    FocusScope.of(context).unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (allArticles.isEmpty) return _buildInitialDownload();
-
-    return PopScope(
-      canPop: !isPanelMode,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          if (_currentPage == 1) {
-            if (rightSelected != null) {
-              setState(() => rightSelected = null);
-            } else {
-              _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-            }
-          } else {
-            setState(() => isPanelMode = false);
-          }
-        }
-      },
-      child: isPanelMode ? _buildPanelLayout() : _buildMainHome(),
-    );
-  }
-
-  Widget _buildMainHome() {
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 70,
-        leadingWidth: 120,
-        leading: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Image.asset('assets/logo.png', fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.menu_book)),
-        ),
-        actions: [_buildSettingsMenu()],
-      ),
-      body: HomeContentView(
-        articles: allArticles,
-        onArticleTap: _openArticle,
-        isDarkMode: widget.isDarkMode,
-      ),
-    );
-  }
-
-  Widget _buildPanelLayout() {
-    Color btnColor = widget.isDarkMode ? Colors.blueAccent : Colors.blue[800]!;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentPage == 0 ? (leftSelected?.title ?? "Panel 1") : (rightSelected?.title ?? "Beranda Panel 2"), style: const TextStyle(fontSize: 14)),
-        leading: IconButton(icon: const Icon(Icons.home), onPressed: () => setState(() => isPanelMode = false)),
-        actions: [
-          IconButton(icon: const Icon(Icons.close), onPressed: () {
-            if (_currentPage == 0) setState(() => isPanelMode = false);
-            else setState(() => rightSelected = null);
-          })
-        ],
-      ),
       body: Stack(
         children: [
-          PageView(
-            controller: _pageController,
-            onPageChanged: (int page) => setState(() => _currentPage = page),
-            children: [
-              ArticleReader(title: leftSelected!.title, content: leftSelected!.content, onClose: () {}),
-              rightSelected != null 
-                  ? ArticleReader(title: rightSelected!.title, content: rightSelected!.content, onClose: () {})
-                  : HomeContentView(articles: allArticles, onArticleTap: (a) => setState(() => rightSelected = a), isDarkMode: widget.isDarkMode),
-            ],
+          Padding(
+            padding: EdgeInsets.only(top: selectedArticle != null ? 0 : (_headerHeight - _headerOffset)),
+            child: selectedArticle != null 
+              ? ArticleReader(
+                  title: selectedArticle!.title, 
+                  content: selectedArticle!.content,
+                  url: selectedArticle!.url,
+                  onClose: () => setState(() => selectedArticle = null),
+                  onLoadStart: () => setState(() => isPageLoading = true),
+                  onLoadEnd: () => setState(() => isPageLoading = false),
+                )
+              : _buildTabContent(),
           ),
-          // Tombol Navigasi Manual
           Positioned(
-            top: 10,
-            right: _currentPage == 0 ? 10 : null,
-            left: _currentPage == 1 ? 10 : null,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: btnColor.withOpacity(0.9), foregroundColor: Colors.white),
-              onPressed: () {
-                if (_currentPage == 0) _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
-                else _pageController.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
-              },
-              icon: Icon(_currentPage == 0 ? Icons.arrow_forward : Icons.arrow_back, size: 16),
-              label: Text(_currentPage == 0 ? "Ke Panel 2" : "Ke Panel 1", style: const TextStyle(fontSize: 12)),
+            top: -_headerOffset,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: [
+                _buildYouTubeHeader(),
+                if (isPageLoading) 
+                  const LinearProgressIndicator(backgroundColor: Colors.transparent, valueColor: AlwaysStoppedAnimation<Color>(Colors.red), minHeight: 2),
+              ],
             ),
           ),
+        ],
+      ),
+      bottomNavigationBar: _buildYouTubeFooter(),
+    );
+  }
+
+  Widget _buildYouTubeHeader() {
+    return Container(
+      height: _headerHeight,
+      color: Theme.of(context).scaffoldBackgroundColor,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          IconButton(icon: const Icon(Icons.language, color: Colors.grey), 
+            onPressed: () => launchUrl(Uri.parse("https://sinsangnot.blogspot.com"), mode: LaunchMode.externalApplication)),
+          Image.asset('assets/logo.png', height: 26, errorBuilder: (c,e,s) => const Icon(Icons.play_circle_fill, color: Colors.red)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              height: 36,
+              decoration: BoxDecoration(
+                color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                onSubmitted: _performFullSearch,
+                style: const TextStyle(fontSize: 14),
+                decoration: const InputDecoration(hintText: "Cari...", prefixIcon: Icon(Icons.search, size: 18), border: InputBorder.none, contentPadding: EdgeInsets.only(bottom: 10)),
+              ),
+            ),
+          ),
+          IconButton(icon: Icon(widget.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined, size: 20), onPressed: widget.toggleTheme),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsMenu() {
-    return PopupMenuButton<int>(
-      icon: const Icon(Icons.settings, color: Colors.blue),
-      onSelected: (item) async {
-        if (item == 0) widget.toggleTheme();
-        if (item == 1) syncData();
-        if (item == 2) _showAbout();
-        if (item == 3) _launchURL("https://sinsangnot.blogspot.com");
-        if (item == 4) _launchURL("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526");
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(value: 0, child: ListTile(leading: Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode), title: Text(widget.isDarkMode ? "Mode Terang" : "Mode Gelap"))),
-        const PopupMenuDivider(),
-        const PopupMenuItem(value: 1, child: ListTile(leading: Icon(Icons.sync), title: Text("Sinkronisasi Data"))),
-        const PopupMenuItem(value: 2, child: ListTile(leading: Icon(Icons.info), title: Text("Tentang Kami"))),
-        const PopupMenuItem(value: 3, child: ListTile(leading: Icon(Icons.language), title: Text("Kunjungi Blog"))),
-        const PopupMenuItem(value: 4, child: ListTile(leading: Icon(Icons.favorite, color: Colors.red), title: Text("Donasi"))),
+  Widget _buildYouTubeFooter() {
+    return BottomNavigationBar(
+      currentIndex: _currentTab == 99 ? 0 : _currentTab,
+      type: BottomNavigationBarType.fixed,
+      selectedFontSize: 10, unselectedFontSize: 10,
+      selectedItemColor: widget.isDarkMode ? Colors.white : Colors.black,
+      unselectedItemColor: Colors.grey,
+      onTap: (index) => setState(() { _currentTab = index; _searchController.clear(); }),
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
+        BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), label: 'Jelajah'),
+        BottomNavigationBarItem(icon: Icon(Icons.library_add_check_outlined), label: 'Koleksi'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Setelan'),
       ],
     );
   }
-
-  void _showAbout() {
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text("Tentang Sinsangnot"),
-      content: const Text("Perpustakaan Digital Notasi Gending Jawa. Praktis, Cepat, dan Offline."),
-      actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("OK"))],
-    ));
-  }
-
-  Widget _buildInitialDownload() {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.library_music, size: 80, color: Colors.blue),
-            const SizedBox(height: 20),
-            if (isLoading) const CircularProgressIndicator()
-            else ElevatedButton(onPressed: syncData, child: const Text("DOWNLOAD DATA")),
-          ],
+  Widget _buildTabContent() {
+    if (_searchController.text.isNotEmpty && _currentTab != 99) {
+      return ListView.builder(
+        controller: _scrollController,
+        itemCount: searchSuggestions.length,
+        itemBuilder: (c, i) => ListTile(
+          leading: const Icon(Icons.history, color: Colors.grey, size: 20),
+          title: Text(searchSuggestions[i].title),
+          onTap: () {
+            setState(() { selectedArticle = searchSuggestions[i]; _searchController.clear(); });
+          },
         ),
-      ),
-    );
+      );
+    }
+
+    if (_currentTab == 99) return _buildFullSearchResults();
+
+    switch (_currentTab) {
+      case 0: return _buildBeranda();
+      case 1: return const Center(child: Text("Jelajah Kategori"));
+      case 2: return const Center(child: Text("Koleksi Offline"));
+      case 3: return _buildSetelan();
+      default: return _buildBeranda();
+    }
   }
 
-  Future<void> _launchURL(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) throw 'Could not launch $url';
-  }
-}
-
-class HomeContentView extends StatefulWidget {
-  final List<Article> articles;
-  final Function(Article) onArticleTap;
-  final bool isDarkMode;
-  HomeContentView({required this.articles, required this.onArticleTap, required this.isDarkMode});
-  @override
-  _HomeContentViewState createState() => _HomeContentViewState();
-}
-
-class _HomeContentViewState extends State<HomeContentView> {
-  final TextEditingController _searchController = TextEditingController();
-  List<Article> searchResults = [];
-  bool isSearching = false;
-
-  void _handleSearch(String q) {
-    if (q.isEmpty) { setState(() { isSearching = false; searchResults = []; }); return; }
-    setState(() {
-      isSearching = true;
-      searchResults = widget.articles.where((a) => a.title.toLowerCase().contains(q.toLowerCase()) || a.content.toLowerCase().contains(q.toLowerCase())).toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildFullSearchResults() {
+    final query = _searchController.text.toLowerCase();
+    final results = allArticles.where((a) => a.title.toLowerCase().contains(query) || a.content.toLowerCase().contains(query)).toList();
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            controller: _searchController,
-            onChanged: _handleSearch,
-            decoration: InputDecoration(
-              hintText: "Cari judul atau isi...",
-              prefixIcon: const Icon(Icons.search, color: Colors.blue),
-              filled: true,
-              fillColor: widget.isDarkMode ? Colors.white10 : Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        Padding(padding: const EdgeInsets.all(16), child: Text("Hasil untuk: \"${_searchController.text}\"", style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))),
+        Expanded(
+          child: results.isEmpty ? const Center(child: Text("Tidak ditemukan.")) : ListView.builder(
+            controller: _scrollController,
+            itemCount: results.length,
+            itemBuilder: (c, i) => ListTile(
+              leading: const Icon(Icons.music_note, color: Colors.red),
+              title: Text(results[i].title),
+              onTap: () => setState(() => selectedArticle = results[i]),
             ),
           ),
         ),
-        Expanded(child: isSearching ? _buildList(searchResults) : _buildWelcome()),
       ],
     );
   }
 
-  Widget _buildWelcome() {
+  Widget _buildBeranda() {
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      controller: _scrollController,
+      padding: const EdgeInsets.all(15),
       children: [
+        const Center(child: Text("Welcome to Sinsangnot", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
         const SizedBox(height: 10),
-        const Center(child: Text("Welcome to Sinsangnot", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue))),
-        const SizedBox(height: 15),
-        const Text(
-          "Sinsangnot adalah perpustakaan digital notasi gending Jawa. Wadah pelestarian budaya yang menyajikan koleksi notasi secara praktis dan akurat.",
-          textAlign: TextAlign.justify,
-          style: TextStyle(fontSize: 15, height: 1.5, color: Colors.grey),
-        ),
+        const Text("Perpustakaan Digital Notasi Gending Jawa. Praktis dan Lengkap.", textAlign: TextAlign.justify, style: TextStyle(color: Colors.grey)),
         const SizedBox(height: 25),
         const Text("Notasi Terbaru", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const Divider(),
-        _buildList(widget.articles.take(20).toList()),
+        ...allArticles.take(20).map((a) => ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.play_arrow_outlined, color: Colors.red),
+          title: Text(a.title, style: const TextStyle(fontSize: 14)),
+          onTap: () => setState(() => selectedArticle = a),
+        )),
       ],
     );
   }
 
-  Widget _buildList(List<Article> list) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: list.length,
-      itemBuilder: (context, i) => ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-        title: Text(list[i].title, style: const TextStyle(fontSize: 14)),
-        trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.blue),
-        onTap: () {
-          _searchController.clear();
-          _handleSearch("");
-          widget.onArticleTap(list[i]);
-        },
-      ),
+  Widget _buildSetelan() {
+    return ListView(
+      controller: _scrollController,
+      children: [
+        ListTile(leading: const Icon(Icons.sync), title: const Text("Sinkronisasi"), onTap: () {}),
+        ListTile(leading: const Icon(Icons.info_outline), title: const Text("Tentang"), onTap: () {}),
+        ListTile(leading: const Icon(Icons.favorite, color: Colors.red), title: const Text("Donasi"), onTap: () {}),
+      ],
     );
   }
-}
+} // Penutup Class _RootNavigationState
