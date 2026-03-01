@@ -11,7 +11,7 @@ class ArticleReader extends StatefulWidget {
   final String title;
   final String content;
   final String url;
-  final List<String> labels; // Tambahan untuk simpan label offline
+  final List<String> labels; 
   final VoidCallback onClose;
   final VoidCallback onLoadStart;
   final VoidCallback onLoadEnd;
@@ -41,6 +41,7 @@ class _ArticleReaderState extends State<ArticleReader> {
   }
 
   void _initWebView() {
+    // Mengambil brightness langsung dari context agar akurat dengan tema aplikasi
     final bool isDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
     
     controller = WebViewController()
@@ -85,7 +86,7 @@ class _ArticleReaderState extends State<ArticleReader> {
     margin: 0;
     padding: 15px;
   }
-  h1 { font-size: 22px; color: #FF0000; margin-bottom: 10px; padding-top: 10px; }
+  h1 { font-size: 20px; color: #FF0000; margin-bottom: 10px; padding-top: 5px; font-weight: bold; }
   .lirik, pre {
     background-color: $lirikBg;
     color: $textColor;
@@ -111,30 +112,49 @@ class _ArticleReaderState extends State<ArticleReader> {
 """;
   }
 
+  // PERBAIKAN POIN 5: Logika Simpan Offline yang lebih kuat
   Future<void> _saveOffline() async {
     try {
       final dbPath = await getDatabasesPath();
-      // Pastikan versi database sesuai dengan main.dart (v3)
-      final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 3);
+      final db = await openDatabase(
+        p.join(dbPath, 'puska.db'), 
+        version: 3,
+        onCreate: (db, version) async {
+          await db.execute(
+            'CREATE TABLE IF NOT EXISTS offline_posts (id TEXT PRIMARY KEY, title TEXT, content TEXT, url TEXT, labels TEXT)'
+          );
+        },
+        onUpgrade: (db, oldV, newV) async {
+          if (oldV < 3) {
+            await db.execute("ALTER TABLE offline_posts ADD COLUMN labels TEXT");
+          }
+        }
+      );
       
       await db.insert('offline_posts', {
         'id': widget.id,
         'title': widget.title,
         'content': widget.content,
         'url': widget.url,
-        'labels': json.encode(widget.labels) // Simpan label sebagai JSON string
+        'labels': json.encode(widget.labels)
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Berhasil disimpan ke Koleksi"), 
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Gagal menyimpan")),
+        SnackBar(
+          content: Text("Gagal menyimpan: $e"),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -145,12 +165,14 @@ class _ArticleReaderState extends State<ArticleReader> {
 
     return Scaffold(
       backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      // AppBar disesuaikan agar serasi dengan header YouTube di main.dart
       appBar: AppBar(
+        backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: widget.onClose,
         ),
-        title: Text(widget.title, style: const TextStyle(fontSize: 14)),
+        title: Text(widget.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
         centerTitle: false,
         elevation: 0,
       ),

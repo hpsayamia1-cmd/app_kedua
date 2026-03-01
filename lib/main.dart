@@ -89,6 +89,7 @@ class _RootNavigationState extends State<RootNavigation> {
   
   bool isLoadingMore = false;
   bool isInitialLoading = true;
+  bool isSearching = false; 
   String? nextPageToken;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
@@ -102,26 +103,30 @@ class _RootNavigationState extends State<RootNavigation> {
     super.initState();
     _fetchInitialFeed();
     _loadOfflineData();
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 300) {
-        if (!isLoadingMore && nextPageToken != null && _searchController.text.isEmpty && _currentTab == 0) {
-          _fetchMoreFeed();
-        }
+    _scrollController.addListener(_scrollListener);
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.extentAfter < 500) {
+      if (!isLoadingMore && nextPageToken != null && _searchController.text.isEmpty && _currentTab == 0 && selectedArticle == null) {
+        _fetchMoreFeed();
       }
-    });
+    }
   }
 
   // --- LOGIKA DATA ---
 
   Future<void> _fetchInitialFeed() async {
     setState(() => isInitialLoading = true);
-    final url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?key=$apiKey&maxResults=10";
+    final url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?key=$apiKey&maxResults=15"; // Ambil lebih banyak untuk shuffle
     try {
       final res = await http.get(Uri.parse(url));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
+        List<Article> fetched = _parseArticles(data['items']);
+        fetched.shuffle(); // Acak Konten
         setState(() {
-          feedArticles = _parseArticles(data['items']);
+          feedArticles = fetched;
           nextPageToken = data['nextPageToken'];
         });
       }
@@ -136,8 +141,10 @@ class _RootNavigationState extends State<RootNavigation> {
       final res = await http.get(Uri.parse(url));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
+        List<Article> fetched = _parseArticles(data['items']);
+        fetched.shuffle(); // Acak data baru yang masuk
         setState(() {
-          feedArticles.addAll(_parseArticles(data['items']));
+          feedArticles.addAll(fetched);
           nextPageToken = data['nextPageToken'];
         });
       }
@@ -147,16 +154,17 @@ class _RootNavigationState extends State<RootNavigation> {
 
   Future<void> _handleSearch(String q, {String? label}) async {
     setState(() {
-      isInitialLoading = true;
-      _currentTab = 0; 
+      isSearching = true; 
+      _currentTab = 0;
+      selectedArticle = null;
     });
 
     try {
       String url = label != null 
-          ? "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?labels=$label&key=$apiKey"
-          : "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=$q&key=$apiKey";
+          ? "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?labels=${Uri.encodeComponent(label)}&key=$apiKey"
+          : "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
           
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() => searchResults = _parseArticles(data['items']));
@@ -172,7 +180,7 @@ class _RootNavigationState extends State<RootNavigation> {
         }).toList();
       });
     }
-    setState(() => isInitialLoading = false);
+    setState(() => isSearching = false);
   }
 
   List<Article> _parseArticles(dynamic items) {
@@ -185,7 +193,13 @@ class _RootNavigationState extends State<RootNavigation> {
 
   Future<void> _loadOfflineData() async {
     final dbPath = await getDatabasesPath();
-    final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 3);
+    final db = await openDatabase(
+      p.join(dbPath, 'puska.db'), 
+      version: 3,
+      onUpgrade: (db, oldV, newV) async {
+        if (oldV < 3) await db.execute("ALTER TABLE offline_posts ADD COLUMN labels TEXT");
+      }
+    );
     final List<Map<String, dynamic>> maps = await db.query('offline_posts');
     setState(() {
       offlineArticles = maps.map((e) => Article(
@@ -195,8 +209,6 @@ class _RootNavigationState extends State<RootNavigation> {
       )).toList();
     });
   }
-
-  // --- FUNGSI HALAMAN INTERNAL (MODAL) ---
 
   void _showInternalPage(String title, String content) {
     showModalBottomSheet(
@@ -230,8 +242,6 @@ class _RootNavigationState extends State<RootNavigation> {
     );
   }
 
-  // --- UI WIDGETS ---
-
   Widget _getThumbnail(String content) {
     RegExp exp = RegExp(r"<svg[\s\S]*?<\/svg>");
     Iterable<RegExpMatch> matches = exp.allMatches(content);
@@ -260,36 +270,52 @@ class _RootNavigationState extends State<RootNavigation> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        if (selectedArticle != null) { setState(() => selectedArticle = null); return false; }
+        if (selectedArticle != null) { 
+          setState(() => selectedArticle = null); 
+          return false; 
+        }
+        if (_searchController.text.isNotEmpty) {
+          _searchController.clear();
+          _fetchInitialFeed();
+          return false;
+        }
+        if (_currentTab != 0) {
+          setState(() => _currentTab = 0);
+          return false;
+        }
         return true;
       },
       child: Scaffold(
-        body: selectedArticle != null
-          ? ArticleReader(
-              id: selectedArticle!.id, title: selectedArticle!.title,
-              content: selectedArticle!.content, url: selectedArticle!.url,
-              labels: selectedArticle!.labels,
-              onClose: () => setState(() => selectedArticle = null),
-              onLoadStart: () => setState(() => isInitialLoading = true),
-              onLoadEnd: () => setState(() => isInitialLoading = false),
-            )
-          : SafeArea(
-              child: NestedScrollView(
-                controller: _scrollController,
-                headerSliverBuilder: (c, inner) => [
-                  SliverAppBar(
-                    floating: true, 
-                    snap: false, 
-                    pinned: false,
-                    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                    title: _buildYouTubeHeader(),
-                    elevation: 0,
+        body: SafeArea(
+          child: NestedScrollView(
+            controller: _scrollController,
+            headerSliverBuilder: (c, inner) => [
+              SliverAppBar(
+                floating: true, 
+                snap: true, 
+                pinned: false,
+                backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                title: _buildYouTubeHeader(),
+                elevation: 0,
+              )
+            ],
+            body: RefreshIndicator(
+              color: Colors.red,
+              onRefresh: _fetchInitialFeed, // Tarik ke atas untuk acak & refresh
+              child: selectedArticle != null 
+                ? ArticleReader(
+                    id: selectedArticle!.id, title: selectedArticle!.title,
+                    content: selectedArticle!.content, url: selectedArticle!.url,
+                    labels: selectedArticle!.labels,
+                    onClose: () => setState(() => selectedArticle = null),
+                    onLoadStart: () => {}, 
+                    onLoadEnd: () => {},
                   )
-                ],
-                body: _buildTabContent(),
-              ),
+                : _buildTabContent(),
             ),
-        bottomNavigationBar: selectedArticle != null ? null : _buildYouTubeFooter(),
+          ),
+        ),
+        bottomNavigationBar: _buildYouTubeFooter(),
       ),
     );
   }
@@ -297,27 +323,30 @@ class _RootNavigationState extends State<RootNavigation> {
   Widget _buildYouTubeHeader() {
     return Row(
       children: [
-        Image.asset('assets/logo.png', height: 32, 
+        Image.asset('assets/logo.png', height: 28, 
           errorBuilder: (c, e, s) => const Icon(Icons.play_circle_fill, color: Colors.red)),
+        const SizedBox(width: 4),
+        const Text("SinsangNot", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: -1)),
         const SizedBox(width: 8),
         Expanded(
           child: Container(
-            height: 38,
+            height: 36,
             decoration: BoxDecoration(
               color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
               borderRadius: BorderRadius.circular(20)),
             child: TextField(
               controller: _searchController,
               onSubmitted: (val) => _handleSearch(val),
+              style: const TextStyle(fontSize: 14),
               decoration: InputDecoration(
-                hintText: "Cari notasi...",
-                prefixIcon: const Icon(Icons.search, size: 20),
+                hintText: "Cari...",
+                prefixIcon: const Icon(Icons.search, size: 18),
                 suffixIcon: _searchController.text.isNotEmpty 
-                  ? IconButton(icon: const Icon(Icons.clear, size: 18), 
+                  ? IconButton(icon: const Icon(Icons.clear, size: 16), 
                       onPressed: () { _searchController.clear(); _fetchInitialFeed(); }) 
                   : null,
                 border: InputBorder.none, 
-                contentPadding: const EdgeInsets.only(bottom: 10)),
+                contentPadding: const EdgeInsets.only(bottom: 12)),
             ),
           ),
         ),
@@ -332,6 +361,15 @@ class _RootNavigationState extends State<RootNavigation> {
       selectedItemColor: widget.isDarkMode ? Colors.white : Colors.black,
       unselectedItemColor: Colors.grey,
       onTap: (i) {
+        if (i == 0) { 
+          // Jika sudah di tab beranda, scroll ke atas & acak ulang
+          if (_currentTab == 0) {
+             _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+             _fetchInitialFeed(); 
+          }
+          _searchController.clear(); 
+          selectedArticle = null; 
+        }
         setState(() => _currentTab = i);
         if (i == 2) _loadOfflineData();
       },
@@ -345,7 +383,7 @@ class _RootNavigationState extends State<RootNavigation> {
   }
 
   Widget _buildTabContent() {
-    if (isInitialLoading && feedArticles.isEmpty) {
+    if (isInitialLoading || isSearching) {
       return const Center(child: CircularProgressIndicator(color: Colors.red));
     }
     
@@ -362,28 +400,30 @@ class _RootNavigationState extends State<RootNavigation> {
 
   Widget _buildArticleList(List<Article> list, {bool isOffline = false}) {
     if (list.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(isOffline ? Icons.cloud_off : Icons.search_off, size: 60, color: Colors.grey),
-              const SizedBox(height: 10),
-              Text(
-                isOffline 
-                  ? "Kosong (Belum terdownload)\nKlik ikon download di artikel untuk menyimpan." 
-                  : "Tidak ditemukan hasil.",
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ],
+      return ListView( // Gunakan ListView agar Pull-to-refresh tetap jalan saat kosong
+        children: [
+          SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+          Center(
+            child: Column(
+              children: [
+                Icon(isOffline ? Icons.cloud_off : Icons.search_off, size: 60, color: Colors.grey),
+                const SizedBox(height: 10),
+                Text(
+                  isOffline 
+                    ? "Kosong (Belum terdownload)\nKlik ikon download di artikel untuk menyimpan." 
+                    : "Tidak ditemukan hasil.",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       );
     }
     return ListView.builder(
       padding: EdgeInsets.zero,
+      physics: const AlwaysScrollableScrollPhysics(), // Wajib ada agar Pull to Refresh aktif
       itemCount: list.length + (isLoadingMore ? 1 : 0),
       itemBuilder: (c, i) {
         if (i == list.length) return const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: Colors.red)));
@@ -409,30 +449,32 @@ class _RootNavigationState extends State<RootNavigation> {
   }
 
   Widget _buildJelajah() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("Kategori Gending", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: gendingLabels.map((label) => InkWell(
-              onTap: () => _handleSearch("", label: label),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4)]
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Kategori Gending", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 12, runSpacing: 12,
+              children: gendingLabels.map((label) => InkWell(
+                onTap: () => _handleSearch("", label: label),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4)]
+                  ),
+                  child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
-                child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            )).toList(),
-          ),
-        ],
+              )).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -463,13 +505,13 @@ class _RootNavigationState extends State<RootNavigation> {
           leading: const Icon(Icons.verified_user_outlined), 
           title: const Text("Privacy Policy"), 
           onTap: () => _showInternalPage("Privacy Policy", 
-            "Kami menghargai privasi Anda. Aplikasi Sinsangnot tidak mengambil data pribadi pengguna. Data koleksi offline disimpan secara lokal di perangkat Anda. Kami menggunakan Google Blogger API hanya untuk menyajikan konten artikel."),
+            "Kami menghargai privasi Anda. Aplikasi Sinsangnot tidak mengambil data pribadi pengguna. Data koleksi offline disimpan secara lokal di perangkat Anda."),
         ),
         ListTile(
           leading: const Icon(Icons.gavel_outlined), 
           title: const Text("Disclaimer"), 
           onTap: () => _showInternalPage("Disclaimer", 
-            "Seluruh isi notasi dalam aplikasi ini adalah hasil digitalisasi kreatif. Kami tidak bertanggung jawab atas kesalahan interpretasi notasi saat latihan. Penggunaan untuk tujuan komersial harus seizin pemilik konten."),
+            "Seluruh isi notasi dalam aplikasi ini adalah hasil digitalisasi kreatif. Penggunaan untuk tujuan komersial harus seizin pemilik konten."),
         ),
         const Divider(),
         ListTile(
