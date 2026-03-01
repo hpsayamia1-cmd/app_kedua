@@ -142,7 +142,13 @@ class _RootNavigationState extends State<RootNavigation> {
   void _loadFromLocal(Database db) async {
     final maps = await db.query('posts');
     setState(() {
-      allArticles = maps.map((e) => Article(id: e['id'], title: e['title'], content: e['content'], url: e['url'])).toList();
+      // Ganti baris 145 yang error tadi dengan ini:
+allArticles = maps.map((e) => Article(
+  id: e['id'].toString(), 
+  title: e['title'].toString(), 
+  content: e['content'].toString(), 
+  url: e['url'].toString()
+)).toList();
       allArticles.shuffle(); 
     });
   }
