@@ -222,7 +222,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       _searchFocusNode.unfocus();
     });
 
-    // Perbaikan Poin 1: Pencarian Offline Selalu Dicek Terlebih Dahulu
+    // Poin 1: Ambil data offline dulu untuk pencarian lokal
     await _loadOfflineData();
     List<Article> localResults = offlineArticles.where((a) => 
       a.title.toLowerCase().contains(q.toLowerCase())
@@ -231,14 +231,15 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     try {
       String url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         List<Article> apiResults = _parseArticles(data['items']);
         
-        // Gabungkan hasil online dengan offline jika ada yang belum ada di API
+        // Integrasi data offline ke hasil pencarian online
         for (var local in localResults) {
           if (!apiResults.any((api) => api.id == local.id)) {
-            apiResults.insert(0, local); // Letakkan hasil lokal paling atas
+            apiResults.insert(0, local);
           }
         }
 
@@ -247,10 +248,10 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
           _currentTab = 0; 
         });
       } else {
-        setState(() => searchResults = localResults);
+        setState(() { searchResults = localResults; _currentTab = 0; });
       }
     } catch (e) {
-      // Jika error (koneksi buruk atau offline), tampilkan hasil lokal
+      // Jika offline total, tampilkan hasil lokal saja
       setState(() {
         searchResults = localResults;
         _currentTab = 0;
@@ -551,7 +552,6 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
         final a = list[i];
         return Column(
           children: [
-            // Perbaikan Poin 2: Lazy Loading Thumbnail SVG
             InkWell(
               onTap: () => setState(() => selectedArticle = a), 
               child: FutureBuilder(
@@ -598,23 +598,36 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     ));
   }
 
+  // Poin 2: Optimasi Thumbnail SVG dengan membersihkan tag sampah
   Widget _getThumbnail(String content) {
-    RegExp exp = RegExp(r"<svg[\s\S]*?<\/svg>");
-    Iterable<RegExpMatch> matches = exp.allMatches(content);
-    return Container(
-      width: double.infinity, height: 200, color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
-      child: matches.isNotEmpty 
-        ? ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.topCenter, 
-              maxHeight: 600, 
-              child: SvgPicture.string(
-                matches.first.group(0)!, 
-                colorFilter: widget.isDarkMode ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null
-              )
+    RegExp svgExp = RegExp(r"<svg[\s\S]*?<\/svg>");
+    RegExp garbageExp = RegExp(r"<(style|metadata|defs)[\s\S]*?<\/\1>|");
+    
+    Match? match = svgExp.firstMatch(content);
+    if (match != null) {
+      // Bersihkan SVG dari style/metadata agar rendering lebih ringan
+      String cleanSvg = match.group(0)!.replaceAll(garbageExp, "");
+      
+      return Container(
+        width: double.infinity, height: 200, 
+        color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
+        child: ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.topCenter, 
+            maxHeight: 600, 
+            child: SvgPicture.string(
+              cleanSvg, 
+              colorFilter: widget.isDarkMode ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null,
+              placeholderBuilder: (context) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
             )
           )
-        : const Icon(Icons.music_video, size: 50, color: Colors.red),
+        ),
+      );
+    }
+    return Container(
+      width: double.infinity, height: 200, 
+      color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
+      child: const Icon(Icons.music_video, size: 50, color: Colors.red),
     );
   }
 
