@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:xml/xml.dart' as xml;
+
+// Import file mesin
 import 'article_view.dart';
+import 'database_helper.dart';
+import 'blogger_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -101,8 +103,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  final String blogId = "1371452320359744712";
-  final String apiKey = "AIzaSyAiBqwqM8EwffLlkslJyLBjSkCWF8DpwDQ";
+  final BloggerService _bloggerService = BloggerService();
   
   final List<String> gendingLabels = ["Tayub", "Ladrang", "Slendro", "Pelog", "Ketawang", "Ayak"];
 
@@ -124,23 +125,11 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
 
   @override
   void dispose() {
+    _scrollController.removeListener(_scrollListener); // Mencegah RAM bocor
     _searchFocusNode.dispose();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<Database> _getDatabase() async {
-    final dbPath = await getDatabasesPath();
-    return openDatabase(
-      p.join(dbPath, 'puska.db'),
-      version: 3,
-      onCreate: (db, version) {
-        return db.execute(
-          "CREATE TABLE offline_posts(id TEXT PRIMARY KEY, title TEXT, content TEXT, url TEXT, labels TEXT)"
-        );
-      },
-    );
   }
 
   void _scrollListener() {
@@ -153,7 +142,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
 
   Future<void> _fetchSitemap() async {
     try {
-      final res = await http.get(Uri.parse("https://sinsangnot.blogspot.com/sitemap.xml"));
+      final res = await _bloggerService.fetchSitemap();
       if (res.statusCode == 200) {
         final document = xml.XmlDocument.parse(res.body);
         final locs = document.findAllElements('loc');
@@ -173,9 +162,8 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
 
   Future<void> _fetchInitialFeed() async {
     setState(() { isInitialLoading = true; isOffline = false; });
-    final url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?key=$apiKey&maxResults=8"; 
     try {
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final res = await _bloggerService.fetchInitialFeed();
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         List<Article> fetched = _parseArticles(data['items']);
@@ -194,8 +182,8 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
   Future<void> _fetchMoreFeed() async {
     if (nextPageToken == null) return;
     setState(() => isLoadingMore = true);
-    final url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?key=$apiKey&maxResults=8&pageToken=$nextPageToken";
     try {
+      final url = "https://www.googleapis.com/blogger/v3/blogs/${_bloggerService.blogId}/posts?key=${_bloggerService.apiKey}&maxResults=8&pageToken=$nextPageToken";
       final res = await http.get(Uri.parse(url));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -222,21 +210,20 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       _searchFocusNode.unfocus();
     });
 
-    // Poin 1: Ambil data offline dulu untuk pencarian lokal
+    // PERBAIKAN: Selalu muat data offline dulu agar bisa dicari saat offline
     await _loadOfflineData();
     List<Article> localResults = offlineArticles.where((a) => 
       a.title.toLowerCase().contains(q.toLowerCase())
     ).toList();
 
     try {
-      String url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      final res = await _bloggerService.searchPosts(q);
       
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         List<Article> apiResults = _parseArticles(data['items']);
         
-        // Integrasi data offline ke hasil pencarian online
+        // Gabungkan hasil Lokal + Online
         for (var local in localResults) {
           if (!apiResults.any((api) => api.id == local.id)) {
             apiResults.insert(0, local);
@@ -251,11 +238,8 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
         setState(() { searchResults = localResults; _currentTab = 0; });
       }
     } catch (e) {
-      // Jika offline total, tampilkan hasil lokal saja
-      setState(() {
-        searchResults = localResults;
-        _currentTab = 0;
-      });
+      // Jika internet error/mati, tetap tampilkan hasil dari database lokal
+      setState(() { searchResults = localResults; _currentTab = 0; });
     }
     setState(() => isSearching = false);
   }
@@ -263,7 +247,9 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
   Future<void> _openFromSitemap(String url) async {
     setState(() { isSearching = true; filteredSuggestions = []; });
     try {
-      final res = await http.get(Uri.parse("https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/bypath?path=${Uri.parse(url).path}&key=$apiKey"));
+      final pathUri = Uri.parse(url).path;
+      final apiUri = "https://www.googleapis.com/blogger/v3/blogs/${_bloggerService.blogId}/posts/bypath?path=$pathUri&key=${_bloggerService.apiKey}";
+      final res = await http.get(Uri.parse(apiUri));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() {
@@ -285,7 +271,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
   }
 
   Future<void> _loadOfflineData() async {
-    final db = await _getDatabase();
+    final db = await DatabaseHelper.getDatabase();
     final List<Map<String, dynamic>> maps = await db.query('offline_posts');
     setState(() {
       offlineArticles = maps.map((e) => Article(
@@ -554,19 +540,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
           children: [
             InkWell(
               onTap: () => setState(() => selectedArticle = a), 
-              child: FutureBuilder(
-                future: Future.delayed(Duration(milliseconds: 100 * (i % 5)), () => a.content),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return Container(
-                      width: double.infinity, height: 200, 
-                      color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
-                      child: const Center(child: Text("Memuat Notasi...", style: TextStyle(color: Colors.grey, fontSize: 12))),
-                    );
-                  }
-                  return _getThumbnail(snapshot.data.toString());
-                },
-              )
+              child: _getThumbnail(a.content) // Perbaikan: Langsung tampilkan tanpa delay
             ),
             ListTile(
               onTap: () => setState(() => selectedArticle = a),
@@ -590,7 +564,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       actions: [
         TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")),
         TextButton(onPressed: () async {
-          final db = await _getDatabase();
+          final db = await DatabaseHelper.getDatabase();
           await db.delete('offline_posts', where: 'id = ?', whereArgs: [a.id]);
           Navigator.pop(c); _loadOfflineData();
         }, child: const Text("Hapus", style: TextStyle(color: Colors.red))),
@@ -598,14 +572,13 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     ));
   }
 
-  // Poin 2: Optimasi Thumbnail SVG dengan membersihkan tag sampah
   Widget _getThumbnail(String content) {
-    RegExp svgExp = RegExp(r"<svg[\s\S]*?<\/svg>");
-    RegExp garbageExp = RegExp(r"<(style|metadata|defs)[\s\S]*?<\/\1>|");
+    // Optimasi Regex agar lebih ringan bagi CPU
+    final RegExp svgExp = RegExp(r"<svg[\s\S]*?<\/svg>");
+    final RegExp garbageExp = RegExp(r"<(style|metadata|defs|desc|title)[\s\S]*?<\/\1>|[a-zA-Z0-9\-]+:attribute|");
     
-    Match? match = svgExp.firstMatch(content);
+    final Match? match = svgExp.firstMatch(content);
     if (match != null) {
-      // Bersihkan SVG dari style/metadata agar rendering lebih ringan
       String cleanSvg = match.group(0)!.replaceAll(garbageExp, "");
       
       return Container(
@@ -618,7 +591,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
             child: SvgPicture.string(
               cleanSvg, 
               colorFilter: widget.isDarkMode ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null,
-              placeholderBuilder: (context) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              placeholderBuilder: (context) => const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))),
             )
           )
         ),
