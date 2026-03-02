@@ -80,9 +80,10 @@ class RootNavigation extends StatefulWidget {
   _RootNavigationState createState() => _RootNavigationState();
 }
 
-class _RootNavigationState extends State<RootNavigation> {
+class _RootNavigationState extends State<RootNavigation> with SingleTickerProviderStateMixin {
   int _currentTab = 0;
   Article? selectedArticle;
+  bool isSplashing = true;
   
   List<Article> feedArticles = [];
   List<Article> searchResults = [];
@@ -97,8 +98,6 @@ class _RootNavigationState extends State<RootNavigation> {
   String? nextPageToken;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
-  
-  // FIX POIN 1: Tambahkan FocusNode agar keyboard tidak close otomatis
   final FocusNode _searchFocusNode = FocusNode();
 
   final String blogId = "1371452320359744712";
@@ -108,6 +107,14 @@ class _RootNavigationState extends State<RootNavigation> {
   @override
   void initState() {
     super.initState();
+    _initApp();
+  }
+
+  Future<void> _initApp() async {
+    // Jalankan splash screen selama 3 detik
+    await Future.delayed(const Duration(seconds: 3));
+    if (mounted) setState(() => isSplashing = false);
+    
     _fetchInitialFeed();
     _loadOfflineData();
     _fetchSitemap();
@@ -116,8 +123,24 @@ class _RootNavigationState extends State<RootNavigation> {
 
   @override
   void dispose() {
-    _searchFocusNode.dispose(); // Membersihkan memori
+    _searchFocusNode.dispose();
+    _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  // Database Initialization (Perbaikan Poin 2)
+  Future<Database> _getDatabase() async {
+    final dbPath = await getDatabasesPath();
+    return openDatabase(
+      p.join(dbPath, 'puska.db'),
+      version: 3,
+      onCreate: (db, version) {
+        return db.execute(
+          "CREATE TABLE offline_posts(id TEXT PRIMARY KEY, title TEXT, content TEXT, url TEXT, labels TEXT)"
+        );
+      },
+    );
   }
 
   void _scrollListener() {
@@ -156,10 +179,7 @@ class _RootNavigationState extends State<RootNavigation> {
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         List<Article> fetched = _parseArticles(data['items']);
-        
-        // Pemanis: Kembalikan fungsi Acak (Shuffle)
         fetched.shuffle(); 
-        
         setState(() {
           feedArticles = fetched;
           nextPageToken = data['nextPageToken'];
@@ -191,35 +211,42 @@ class _RootNavigationState extends State<RootNavigation> {
     setState(() => isLoadingMore = false);
   }
 
+  // Perbaikan Poin 4: Penanganan Label Jelajah
   Future<void> _handleSearch(String q, {String? label}) async {
     setState(() {
       isSearching = true; 
       filteredSuggestions = []; 
       selectedArticle = null;
-      _searchFocusNode.unfocus(); // Tutup keyboard hanya setelah "Go" atau pilih label
+      _searchFocusNode.unfocus();
     });
 
     try {
-      // FIX POIN 4: Gunakan query labels= sesuai cara kerja blog kamu
-      String url = label != null 
-          ? "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?labels=${Uri.encodeComponent(label)}&key=$apiKey"
-          : "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
+      String url;
+      if (label != null) {
+        url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?labels=${Uri.encodeComponent(label)}&key=$apiKey";
+      } else {
+        url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
+      }
           
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() {
           searchResults = _parseArticles(data['items']);
-          _currentTab = 0; // Kembali ke beranda untuk lihat hasil
+          _currentTab = 0; // Tampilkan hasil di tab beranda
         });
+      } else {
+        setState(() => searchResults = []);
       }
     } catch (e) {
+      // Fallback offline search
       setState(() {
         searchResults = offlineArticles.where((a) {
           final matchTitle = a.title.toLowerCase().contains(q.toLowerCase());
           final matchLabel = label != null && a.labels.contains(label);
           return label != null ? matchLabel : matchTitle;
         }).toList();
+        _currentTab = 0;
       });
     }
     setState(() => isSearching = false);
@@ -234,7 +261,7 @@ class _RootNavigationState extends State<RootNavigation> {
         setState(() {
           selectedArticle = _parseArticles([data]).first;
           _searchController.clear();
-          _searchFocusNode.unfocus(); // Keyboard tutup setelah artikel terbuka
+          _searchFocusNode.unfocus();
         });
       }
     } catch (e) { debugPrint("Direct open error: $e"); }
@@ -250,8 +277,7 @@ class _RootNavigationState extends State<RootNavigation> {
   }
 
   Future<void> _loadOfflineData() async {
-    final dbPath = await getDatabasesPath();
-    final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 3);
+    final db = await _getDatabase();
     final List<Map<String, dynamic>> maps = await db.query('offline_posts');
     setState(() {
       offlineArticles = maps.map((e) => Article(
@@ -274,10 +300,40 @@ class _RootNavigationState extends State<RootNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    // Perbaikan Poin 3: Tampilan Splash Screen
+    if (isSplashing) {
+      return Scaffold(
+        backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TweenAnimationBuilder(
+                duration: const Duration(seconds: 2),
+                tween: Tween<double>(begin: 0, end: 1),
+                builder: (context, double value, child) {
+                  return Opacity(
+                    opacity: value,
+                    child: Transform.scale(
+                      scale: 0.8 + (0.2 * value),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Image.asset('assets/logo.png', height: 100, 
+                  errorBuilder: (c, e, s) => const Icon(Icons.play_circle_fill, color: Colors.red, size: 100)),
+              ),
+              const SizedBox(height: 20),
+              const Text("SinsangNot", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: -1)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return WillPopScope(
       onWillPop: () async {
         if (selectedArticle != null) { 
-          _resetSearch(); 
           setState(() => selectedArticle = null); 
           return false; 
         }
@@ -310,8 +366,8 @@ class _RootNavigationState extends State<RootNavigation> {
                 id: selectedArticle!.id, title: selectedArticle!.title,
                 content: selectedArticle!.content, url: selectedArticle!.url,
                 labels: selectedArticle!.labels,
+                isDarkMode: widget.isDarkMode, // Perbaikan Poin 5: Kirim status tema
                 onClose: () {
-                  _resetSearch();
                   setState(() => selectedArticle = null);
                 },
                 onLoadStart: () => {}, 
@@ -343,7 +399,7 @@ class _RootNavigationState extends State<RootNavigation> {
               borderRadius: BorderRadius.circular(20)),
             child: TextField(
               controller: _searchController,
-              focusNode: _searchFocusNode, // FIX: Kunci fokus di sini agar keyboard tidak lari
+              focusNode: _searchFocusNode, 
               onChanged: (val) {
                 setState(() {
                   if (val.isEmpty) {
@@ -397,9 +453,11 @@ class _RootNavigationState extends State<RootNavigation> {
       selectedItemColor: widget.isDarkMode ? Colors.white : Colors.black,
       unselectedItemColor: Colors.grey,
       onTap: (i) {
-        _resetSearch();
-        setState(() { _currentTab = i; selectedArticle = null; });
-        if (i == 2) _loadOfflineData();
+        if (_currentTab != i) {
+          _resetSearch();
+          setState(() { _currentTab = i; selectedArticle = null; });
+          if (i == 2) _loadOfflineData();
+        }
       },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
@@ -414,7 +472,7 @@ class _RootNavigationState extends State<RootNavigation> {
     if (isInitialLoading || isSearching) {
       return const Center(child: CircularProgressIndicator(color: Colors.red));
     }
-    if (isOffline && _currentTab == 0) {
+    if (isOffline && _currentTab == 0 && feedArticles.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -438,7 +496,7 @@ class _RootNavigationState extends State<RootNavigation> {
     }
 
     switch (_currentTab) {
-      case 0: return _buildArticleList(_searchController.text.isNotEmpty ? searchResults : feedArticles);
+      case 0: return _buildArticleList(searchResults.isNotEmpty || _searchController.text.isNotEmpty ? searchResults : feedArticles);
       case 1: return _buildJelajah();
       case 2: return _buildArticleList(offlineArticles, isOfflineTab: true);
       case 3: return _buildSetelan();
@@ -452,7 +510,7 @@ class _RootNavigationState extends State<RootNavigation> {
     }
     return ListView.builder(
       controller: _currentTab == 0 ? _scrollController : null,
-      itemCount: list.length + (isLoadingMore ? 1 : 0),
+      itemCount: list.length + (isLoadingMore && _currentTab == 0 ? 1 : 0),
       itemBuilder: (c, i) {
         if (i == list.length) return const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: Colors.red)));
         final a = list[i];
@@ -481,7 +539,7 @@ class _RootNavigationState extends State<RootNavigation> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")),
         TextButton(onPressed: () async {
-          final db = await openDatabase(p.join(await getDatabasesPath(), 'puska.db'));
+          final db = await _getDatabase();
           await db.delete('offline_posts', where: 'id = ?', whereArgs: [a.id]);
           Navigator.pop(c); _loadOfflineData();
         }, child: const Text("Hapus", style: TextStyle(color: Colors.red))),
@@ -500,7 +558,6 @@ class _RootNavigationState extends State<RootNavigation> {
     );
   }
 
-  // FIX POIN 4 & PEMANIS: Jelajah dengan gaya lingkaran dari blogmu
   Widget _buildJelajah() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -512,7 +569,6 @@ class _RootNavigationState extends State<RootNavigation> {
           Wrap(
             spacing: 20, runSpacing: 25,
             children: gendingLabels.map((l) {
-              // Logika Inisial dari blogmu: Ambil angka setelah tanda strip (-)
               String displayChar = l.contains('-') ? l.split('-').last : l[0];
               return InkWell(
                 onTap: () => _handleSearch("", label: l),
@@ -534,7 +590,6 @@ class _RootNavigationState extends State<RootNavigation> {
     );
   }
 
-  // FIX: Mengembalikan menu Tentang, Privacy, Disclaimer, Donasi yang hilang
   Widget _buildSetelan() {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 10),

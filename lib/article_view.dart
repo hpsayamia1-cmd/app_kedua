@@ -12,6 +12,7 @@ class ArticleReader extends StatefulWidget {
   final String content;
   final String url;
   final List<String> labels; 
+  final bool isDarkMode; // Poin 5: Menambahkan parameter tema
   final VoidCallback onClose;
   final VoidCallback onLoadStart;
   final VoidCallback onLoadEnd;
@@ -22,6 +23,7 @@ class ArticleReader extends StatefulWidget {
     required this.content,
     required this.url,
     required this.labels,
+    required this.isDarkMode,
     required this.onClose,
     required this.onLoadStart,
     required this.onLoadEnd,
@@ -40,30 +42,27 @@ class _ArticleReaderState extends State<ArticleReader> {
     _initWebView();
   }
 
-  // FIX POIN 2: PENTING! Supaya konten berubah saat klik rekomendasi/sitemap
+  // Sinkronisasi saat ada perubahan konten atau tema
   @override
   void didUpdateWidget(ArticleReader oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.content != widget.content) {
-      final bool isDark = Theme.of(context).brightness == Brightness.dark;
-      controller.loadHtmlString(_buildHtml(isDark));
+    if (oldWidget.id != widget.id || oldWidget.content != widget.content || oldWidget.isDarkMode != widget.isDarkMode) {
+      controller.setBackgroundColor(widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white);
+      controller.loadHtmlString(_buildHtml(widget.isDarkMode));
     }
   }
 
   void _initWebView() {
-    // Menggunakan dispatcher untuk cek mode awal
-    final bool isDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
-    
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(isDark ? const Color(0xFF0F0F0F) : Colors.white)
+      ..setBackgroundColor(widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) => widget.onLoadStart(),
           onPageFinished: (url) => widget.onLoadEnd(),
         ),
       )
-      ..loadHtmlString(_buildHtml(isDark));
+      ..loadHtmlString(_buildHtml(widget.isDarkMode));
   }
 
   String _buildHtml(bool isDark) {
@@ -87,19 +86,11 @@ class _ArticleReaderState extends State<ArticleReader> {
     overflow-x: hidden;
   }
 
-  /* FIX POIN: Menghilangkan Judul Bawaan Blogger sesuai request kamu */
-  .post-title-full, 
-  h1.post-title, 
-  .entry-title, 
-  .post-header,
-  .header-outer, 
-  .nav-outer, 
-  .footer-outer { 
+  /* Menghilangkan Judul Bawaan Blogger */
+  .post-title-full, h1.post-title, .entry-title, .post-header,
+  .header-outer, .nav-outer, .footer-outer, .comments, .sidebar { 
     display: none !important; 
     visibility: hidden !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
   }
 
   .lirik, pre {
@@ -114,7 +105,6 @@ class _ArticleReaderState extends State<ArticleReader> {
     border-radius: 4px;
   }
 
-  /* Pengaturan SVG agar pas di layar HP */
   svg { 
     max-width: 100% !important; 
     height: auto !important; 
@@ -124,6 +114,9 @@ class _ArticleReaderState extends State<ArticleReader> {
   ${isDark ? 'svg { filter: invert(1) hue-rotate(180deg); }' : ''}
   
   img { max-width: 100%; height: auto; border-radius: 8px; }
+  
+  /* Hilangkan padding default pada elemen konten blogger */
+  .post-body { padding: 0 !important; }
 </style>
 </head>
 <body>
@@ -134,11 +127,14 @@ class _ArticleReaderState extends State<ArticleReader> {
 """;
   }
 
-  // FIX POIN 3: Tombol Download/Simpan Berfungsi
+  // Poin 2: Perbaikan Save Database
   Future<void> _saveOffline() async {
     try {
       final dbPath = await getDatabasesPath();
-      final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 3);
+      final db = await openDatabase(
+        p.join(dbPath, 'puska.db'),
+        version: 3,
+      );
       
       await db.insert('offline_posts', {
         'id': widget.id,
@@ -170,14 +166,11 @@ class _ArticleReaderState extends State<ArticleReader> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
       body: WebViewWidget(
         controller: controller,
         gestureRecognizers: {
-          // Tetap bisa scroll meskipun di dalam WebView
           Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
         },
       ),
