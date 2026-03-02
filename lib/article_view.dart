@@ -12,7 +12,7 @@ class ArticleReader extends StatefulWidget {
   final String content;
   final String url;
   final List<String> labels; 
-  final bool isDarkMode; // Poin 5: Menambahkan parameter tema
+  final bool isDarkMode;
   final VoidCallback onClose;
   final VoidCallback onLoadStart;
   final VoidCallback onLoadEnd;
@@ -42,7 +42,6 @@ class _ArticleReaderState extends State<ArticleReader> {
     _initWebView();
   }
 
-  // Sinkronisasi saat ada perubahan konten atau tema
   @override
   void didUpdateWidget(ArticleReader oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -86,7 +85,6 @@ class _ArticleReaderState extends State<ArticleReader> {
     overflow-x: hidden;
   }
 
-  /* Menghilangkan Judul Bawaan Blogger */
   .post-title-full, h1.post-title, .entry-title, .post-header,
   .header-outer, .nav-outer, .footer-outer, .comments, .sidebar { 
     display: none !important; 
@@ -112,10 +110,7 @@ class _ArticleReaderState extends State<ArticleReader> {
     margin: 10px auto; 
   }
   ${isDark ? 'svg { filter: invert(1) hue-rotate(180deg); }' : ''}
-  
   img { max-width: 100%; height: auto; border-radius: 8px; }
-  
-  /* Hilangkan padding default pada elemen konten blogger */
   .post-body { padding: 0 !important; }
 </style>
 </head>
@@ -127,14 +122,10 @@ class _ArticleReaderState extends State<ArticleReader> {
 """;
   }
 
-  // Poin 2: Perbaikan Save Database
   Future<void> _saveOffline() async {
     try {
       final dbPath = await getDatabasesPath();
-      final db = await openDatabase(
-        p.join(dbPath, 'puska.db'),
-        version: 3,
-      );
+      final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 3);
       
       await db.insert('offline_posts', {
         'id': widget.id,

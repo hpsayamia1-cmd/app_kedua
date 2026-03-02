@@ -96,13 +96,15 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
   bool isSearching = false; 
   bool isOffline = false;
   String? nextPageToken;
+  
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
   final String blogId = "1371452320359744712";
   final String apiKey = "AIzaSyAiBqwqM8EwffLlkslJyLBjSkCWF8DpwDQ";
-  final List<String> gendingLabels = ["Gong-1", "Gong-2", "Gong-3", "Gong-5", "Gong-6"];
+  
+  final List<String> gendingLabels = ["Tayub", "Ladrang", "Slendro", "Pelog", "Ketawang", "Ayak"];
 
   @override
   void initState() {
@@ -111,7 +113,6 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
   }
 
   Future<void> _initApp() async {
-    // Jalankan splash screen selama 3 detik
     await Future.delayed(const Duration(seconds: 3));
     if (mounted) setState(() => isSplashing = false);
     
@@ -129,7 +130,6 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     super.dispose();
   }
 
-  // Database Initialization (Perbaikan Poin 2)
   Future<Database> _getDatabase() async {
     final dbPath = await getDatabasesPath();
     return openDatabase(
@@ -211,41 +211,32 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     setState(() => isLoadingMore = false);
   }
 
-  // Perbaikan Poin 4: Penanganan Label Jelajah
-  Future<void> _handleSearch(String q, {String? label}) async {
+  Future<void> _handleSearch(String q) async {
+    if (q.isEmpty) return;
+    
     setState(() {
       isSearching = true; 
       filteredSuggestions = []; 
       selectedArticle = null;
+      _searchController.text = q;
       _searchFocusNode.unfocus();
     });
 
     try {
-      String url;
-      if (label != null) {
-        url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?labels=${Uri.encodeComponent(label)}&key=$apiKey";
-      } else {
-        url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
-      }
-          
+      String url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() {
           searchResults = _parseArticles(data['items']);
-          _currentTab = 0; // Tampilkan hasil di tab beranda
+          _currentTab = 0; 
         });
       } else {
         setState(() => searchResults = []);
       }
     } catch (e) {
-      // Fallback offline search
       setState(() {
-        searchResults = offlineArticles.where((a) {
-          final matchTitle = a.title.toLowerCase().contains(q.toLowerCase());
-          final matchLabel = label != null && a.labels.contains(label);
-          return label != null ? matchLabel : matchTitle;
-        }).toList();
+        searchResults = offlineArticles.where((a) => a.title.toLowerCase().contains(q.toLowerCase())).toList();
         _currentTab = 0;
       });
     }
@@ -300,7 +291,6 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    // Perbaikan Poin 3: Tampilan Splash Screen
     if (isSplashing) {
       return Scaffold(
         backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
@@ -314,10 +304,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
                 builder: (context, double value, child) {
                   return Opacity(
                     opacity: value,
-                    child: Transform.scale(
-                      scale: 0.8 + (0.2 * value),
-                      child: child,
-                    ),
+                    child: Transform.scale(scale: 0.8 + (0.2 * value), child: child),
                   );
                 },
                 child: Image.asset('assets/logo.png', height: 100, 
@@ -366,7 +353,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
                 id: selectedArticle!.id, title: selectedArticle!.title,
                 content: selectedArticle!.content, url: selectedArticle!.url,
                 labels: selectedArticle!.labels,
-                isDarkMode: widget.isDarkMode, // Perbaikan Poin 5: Kirim status tema
+                isDarkMode: widget.isDarkMode,
                 onClose: () {
                   setState(() => selectedArticle = null);
                 },
@@ -384,7 +371,10 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     return Row(
       children: [
         GestureDetector(
-          onTap: () { _resetSearch(); setState(() { _currentTab = 0; selectedArticle = null; }); },
+          onTap: () { 
+            _resetSearch(); 
+            setState(() { _currentTab = 0; selectedArticle = null; }); 
+          },
           child: Image.asset('assets/logo.png', height: 28, 
             errorBuilder: (c, e, s) => const Icon(Icons.play_circle_fill, color: Colors.red)),
         ),
@@ -399,17 +389,27 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
               borderRadius: BorderRadius.circular(20)),
             child: TextField(
               controller: _searchController,
-              focusNode: _searchFocusNode, 
+              focusNode: _searchFocusNode,
               onChanged: (val) {
-                setState(() {
-                  if (val.isEmpty) {
-                    filteredSuggestions = [];
-                  } else {
-                    filteredSuggestions = sitemapSuggestions
-                        .where((s) => s['title']!.toLowerCase().contains(val.toLowerCase()))
-                        .take(5).toList();
-                  }
-                });
+                if (val.isEmpty) {
+                  setState(() => filteredSuggestions = []);
+                } else {
+                  // PERBAIKAN: Sorting agar hasil yang paling cocok berada di atas
+                  final List<Map<String, String>> temp = sitemapSuggestions
+                      .where((s) => s['title']!.toLowerCase().contains(val.toLowerCase()))
+                      .toList();
+                  
+                  // Urutkan: yang dimulai dengan 'val' akan paling atas
+                  temp.sort((a, b) {
+                    bool aStarts = a['title']!.toLowerCase().startsWith(val.toLowerCase());
+                    bool bStarts = b['title']!.toLowerCase().startsWith(val.toLowerCase());
+                    if (aStarts && !bStarts) return -1;
+                    if (!aStarts && bStarts) return 1;
+                    return a['title']!.length.compareTo(b['title']!.length);
+                  });
+
+                  setState(() => filteredSuggestions = temp.take(5).toList());
+                }
               },
               onSubmitted: (val) => _handleSearch(val),
               style: const TextStyle(fontSize: 14),
@@ -417,8 +417,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
                 hintText: "Cari...",
                 prefixIcon: const Icon(Icons.search, size: 18),
                 suffixIcon: _searchController.text.isNotEmpty 
-                  ? IconButton(icon: const Icon(Icons.clear, size: 16), 
-                      onPressed: _resetSearch) 
+                  ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: _resetSearch) 
                   : null,
                 border: InputBorder.none, 
                 contentPadding: const EdgeInsets.only(bottom: 12)),
@@ -453,7 +452,11 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       selectedItemColor: widget.isDarkMode ? Colors.white : Colors.black,
       unselectedItemColor: Colors.grey,
       onTap: (i) {
-        if (_currentTab != i) {
+        // PERBAIKAN: Reset jika klik Beranda
+        if (i == 0) {
+          _resetSearch();
+          setState(() { _currentTab = 0; selectedArticle = null; });
+        } else if (_currentTab != i) {
           _resetSearch();
           setState(() { _currentTab = i; selectedArticle = null; });
           if (i == 2) _loadOfflineData();
@@ -569,14 +572,13 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
           Wrap(
             spacing: 20, runSpacing: 25,
             children: gendingLabels.map((l) {
-              String displayChar = l.contains('-') ? l.split('-').last : l[0];
               return InkWell(
-                onTap: () => _handleSearch("", label: l),
+                onTap: () => _handleSearch(l),
                 child: Column(
                   children: [
                     CircleAvatar(
                       radius: 30, backgroundColor: Colors.red,
-                      child: Text(displayChar, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      child: Text(l[0], style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(height: 8),
                     Text(l, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
