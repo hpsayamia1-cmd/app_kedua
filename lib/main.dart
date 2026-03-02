@@ -222,21 +222,36 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       _searchFocusNode.unfocus();
     });
 
+    // Perbaikan: Selalu cek hasil offline dulu
+    List<Article> localResults = offlineArticles.where((a) => 
+      a.title.toLowerCase().contains(q.toLowerCase())
+    ).toList();
+
     try {
       String url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(q)}&key=$apiKey";
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
+        List<Article> apiResults = _parseArticles(data['items']);
+        
+        // Gabungkan hasil online dengan offline jika ada yang unik
+        for (var local in localResults) {
+          if (!apiResults.any((api) => api.id == local.id)) {
+            apiResults.add(local);
+          }
+        }
+
         setState(() {
-          searchResults = _parseArticles(data['items']);
+          searchResults = apiResults;
           _currentTab = 0; 
         });
       } else {
-        setState(() => searchResults = []);
+        setState(() => searchResults = localResults);
       }
     } catch (e) {
+      // Jika error (offline), tampilkan hasil lokal saja
       setState(() {
-        searchResults = offlineArticles.where((a) => a.title.toLowerCase().contains(q.toLowerCase())).toList();
+        searchResults = localResults;
         _currentTab = 0;
       });
     }
@@ -338,29 +353,30 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
         appBar: AppBar(
           title: _buildYouTubeHeader(),
           elevation: 0,
-          bottom: filteredSuggestions.isNotEmpty 
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(200),
-                child: _buildSitemapSuggestions(),
-              ) 
-            : null,
         ),
-        body: RefreshIndicator(
-          color: Colors.red,
-          onRefresh: _fetchInitialFeed, 
-          child: selectedArticle != null 
-            ? ArticleReader(
-                id: selectedArticle!.id, title: selectedArticle!.title,
-                content: selectedArticle!.content, url: selectedArticle!.url,
-                labels: selectedArticle!.labels,
-                isDarkMode: widget.isDarkMode,
-                onClose: () {
-                  setState(() => selectedArticle = null);
-                },
-                onLoadStart: () => {}, 
-                onLoadEnd: () => {},
-              )
-            : _buildTabContent(),
+        body: Stack(
+          children: [
+            RefreshIndicator(
+              color: Colors.red,
+              onRefresh: _fetchInitialFeed, 
+              child: selectedArticle != null 
+                ? ArticleReader(
+                    id: selectedArticle!.id, title: selectedArticle!.title,
+                    content: selectedArticle!.content, url: selectedArticle!.url,
+                    labels: selectedArticle!.labels,
+                    isDarkMode: widget.isDarkMode,
+                    onClose: () {
+                      setState(() => selectedArticle = null);
+                    },
+                    onLoadStart: () => {}, 
+                    onLoadEnd: () => {},
+                  )
+                : _buildTabContent(),
+            ),
+            // PERBAIKAN: Saran pencarian melayang agar keyboard tidak tertutup
+            if (filteredSuggestions.isNotEmpty) 
+              _buildFloatingSuggestions(),
+          ],
         ),
         bottomNavigationBar: _buildYouTubeFooter(),
       ),
@@ -394,12 +410,10 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
                 if (val.isEmpty) {
                   setState(() => filteredSuggestions = []);
                 } else {
-                  // PERBAIKAN: Sorting agar hasil yang paling cocok berada di atas
                   final List<Map<String, String>> temp = sitemapSuggestions
                       .where((s) => s['title']!.toLowerCase().contains(val.toLowerCase()))
                       .toList();
                   
-                  // Urutkan: yang dimulai dengan 'val' akan paling atas
                   temp.sort((a, b) {
                     bool aStarts = a['title']!.toLowerCase().startsWith(val.toLowerCase());
                     bool bStarts = b['title']!.toLowerCase().startsWith(val.toLowerCase());
@@ -428,18 +442,38 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     );
   }
 
-  Widget _buildSitemapSuggestions() {
-    return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      constraints: const BoxConstraints(maxHeight: 200),
-      child: ListView.builder(
-        shrinkWrap: true,
-        itemCount: filteredSuggestions.length,
-        itemBuilder: (c, i) => ListTile(
-          dense: true,
-          leading: const Icon(Icons.history, size: 18),
-          title: Text(filteredSuggestions[i]['title']!, style: const TextStyle(fontSize: 13)),
-          onTap: () => _openFromSitemap(filteredSuggestions[i]['url']!),
+  // PERBAIKAN: Widget saran pencarian melayang (floating)
+  Widget _buildFloatingSuggestions() {
+    return Positioned(
+      top: 0,
+      left: 60, 
+      right: 16,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        color: (widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white).withOpacity(0.95),
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 250),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+          ),
+          child: ListView.separated(
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            itemCount: filteredSuggestions.length,
+            separatorBuilder: (c, i) => Divider(height: 1, color: Colors.grey.withOpacity(0.2)),
+            itemBuilder: (c, i) => ListTile(
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              leading: const Icon(Icons.history, size: 18, color: Colors.red),
+              title: Text(
+                filteredSuggestions[i]['title']!, 
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400)
+              ),
+              onTap: () => _openFromSitemap(filteredSuggestions[i]['url']!),
+            ),
+          ),
         ),
       ),
     );
@@ -452,7 +486,6 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       selectedItemColor: widget.isDarkMode ? Colors.white : Colors.black,
       unselectedItemColor: Colors.grey,
       onTap: (i) {
-        // PERBAIKAN: Reset jika klik Beranda
         if (i == 0) {
           _resetSearch();
           setState(() { _currentTab = 0; selectedArticle = null; });
