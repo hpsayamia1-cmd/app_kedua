@@ -116,8 +116,8 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     await Future.delayed(const Duration(seconds: 3));
     if (mounted) setState(() => isSplashing = false);
     
+    await _loadOfflineData();
     _fetchInitialFeed();
-    _loadOfflineData();
     _fetchSitemap();
     _scrollController.addListener(_scrollListener);
   }
@@ -222,7 +222,8 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       _searchFocusNode.unfocus();
     });
 
-    // Perbaikan: Selalu cek hasil offline dulu
+    // Perbaikan Poin 1: Pencarian Offline Selalu Dicek Terlebih Dahulu
+    await _loadOfflineData();
     List<Article> localResults = offlineArticles.where((a) => 
       a.title.toLowerCase().contains(q.toLowerCase())
     ).toList();
@@ -234,10 +235,10 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
         final data = json.decode(res.body);
         List<Article> apiResults = _parseArticles(data['items']);
         
-        // Gabungkan hasil online dengan offline jika ada yang unik
+        // Gabungkan hasil online dengan offline jika ada yang belum ada di API
         for (var local in localResults) {
           if (!apiResults.any((api) => api.id == local.id)) {
-            apiResults.add(local);
+            apiResults.insert(0, local); // Letakkan hasil lokal paling atas
           }
         }
 
@@ -249,7 +250,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
         setState(() => searchResults = localResults);
       }
     } catch (e) {
-      // Jika error (offline), tampilkan hasil lokal saja
+      // Jika error (koneksi buruk atau offline), tampilkan hasil lokal
       setState(() {
         searchResults = localResults;
         _currentTab = 0;
@@ -373,7 +374,6 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
                   )
                 : _buildTabContent(),
             ),
-            // PERBAIKAN: Saran pencarian melayang agar keyboard tidak tertutup
             if (filteredSuggestions.isNotEmpty) 
               _buildFloatingSuggestions(),
           ],
@@ -442,7 +442,6 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     );
   }
 
-  // PERBAIKAN: Widget saran pencarian melayang (floating)
   Widget _buildFloatingSuggestions() {
     return Positioned(
       top: 0,
@@ -552,7 +551,23 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
         final a = list[i];
         return Column(
           children: [
-            InkWell(onTap: () => setState(() => selectedArticle = a), child: _getThumbnail(a.content)),
+            // Perbaikan Poin 2: Lazy Loading Thumbnail SVG
+            InkWell(
+              onTap: () => setState(() => selectedArticle = a), 
+              child: FutureBuilder(
+                future: Future.delayed(Duration(milliseconds: 100 * (i % 5)), () => a.content),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return Container(
+                      width: double.infinity, height: 200, 
+                      color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
+                      child: const Center(child: Text("Memuat Notasi...", style: TextStyle(color: Colors.grey, fontSize: 12))),
+                    );
+                  }
+                  return _getThumbnail(snapshot.data.toString());
+                },
+              )
+            ),
             ListTile(
               onTap: () => setState(() => selectedArticle = a),
               leading: const CircleAvatar(backgroundColor: Colors.red, child: Icon(Icons.music_note, color: Colors.white, size: 20)),
@@ -589,7 +604,16 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     return Container(
       width: double.infinity, height: 200, color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
       child: matches.isNotEmpty 
-        ? ClipRect(child: OverflowBox(alignment: Alignment.topCenter, maxHeight: 600, child: SvgPicture.string(matches.first.group(0)!, colorFilter: widget.isDarkMode ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null)))
+        ? ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topCenter, 
+              maxHeight: 600, 
+              child: SvgPicture.string(
+                matches.first.group(0)!, 
+                colorFilter: widget.isDarkMode ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null
+              )
+            )
+          )
         : const Icon(Icons.music_video, size: 50, color: Colors.red),
     );
   }
