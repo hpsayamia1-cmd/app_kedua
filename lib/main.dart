@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:xml/xml.dart' as xml;
 
@@ -11,6 +10,8 @@ import 'package:xml/xml.dart' as xml;
 import 'article_view.dart';
 import 'database_helper.dart';
 import 'blogger_service.dart';
+import 'header_widget.dart';
+import 'footer_widget.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,13 +25,11 @@ class PuskarajaApp extends StatefulWidget {
 
 class _PuskarajaAppState extends State<PuskarajaApp> {
   ThemeMode _themeMode = ThemeMode.dark;
-
   @override
   void initState() {
     super.initState();
     _loadThemeSettings();
   }
-
   Future<void> _loadThemeSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -38,7 +37,6 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
   }
-
   void _updateTheme(bool isDark) async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -46,76 +44,45 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
       prefs.setBool('isDarkMode', isDark);
     });
   }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
-      theme: ThemeData(
-        brightness: Brightness.light, 
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(backgroundColor: Colors.white, foregroundColor: Colors.black)
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark, 
-        scaffoldBackgroundColor: const Color(0xFF0F0F0F),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF0F0F0F), foregroundColor: Colors.white)
-      ),
+      theme: ThemeData(brightness: Brightness.light, scaffoldBackgroundColor: Colors.white),
+      darkTheme: ThemeData(brightness: Brightness.dark, scaffoldBackgroundColor: const Color(0xFF0F0F0F)),
       home: RootNavigation(updateTheme: _updateTheme, isDarkMode: _themeMode == ThemeMode.dark),
     );
   }
 }
 
-// POINT 1 & 6: Data model ditingkatkan untuk menyimpan hasil Pre-processing & Pre-fetching
 class Article {
   final String id, title, content, url;
   final List<String> labels;
-  String? cleanSvg; // Simpan hasil regex di sini agar tidak dihitung ulang saat scroll
-
-  Article({
-    required this.id, 
-    required this.title, 
-    required this.content, 
-    required this.url, 
-    this.labels = const [],
-    this.cleanSvg,
-  });
+  String? cleanSvg;
+  Article({required this.id, required this.title, required this.content, required this.url, this.labels = const [], this.cleanSvg});
 }
 
 class RootNavigation extends StatefulWidget {
   final Function(bool) updateTheme;
   final bool isDarkMode;
   RootNavigation({required this.updateTheme, required this.isDarkMode});
-
   @override
   _RootNavigationState createState() => _RootNavigationState();
 }
 
-class _RootNavigationState extends State<RootNavigation> with SingleTickerProviderStateMixin {
+class _RootNavigationState extends State<RootNavigation> {
   int _currentTab = 0;
   Article? selectedArticle;
   bool isSplashing = true;
-  
-  List<Article> feedArticles = [];
-  List<Article> searchResults = [];
-  List<Article> offlineArticles = [];
-  List<Map<String, String>> sitemapSuggestions = [];
-  List<Map<String, String>> filteredSuggestions = [];
-  
-  bool isLoadingMore = false;
-  bool isInitialLoading = true;
-  bool isSearching = false; 
-  bool isOffline = false;
+  List<Article> feedArticles = [], searchResults = [], offlineArticles = [];
+  List<Map<String, String>> sitemapSuggestions = [], filteredSuggestions = [];
+  bool isLoadingMore = false, isInitialLoading = true, isSearching = false, isOffline = false;
   String? nextPageToken;
-  
-  // POINT 5: Debouncer untuk pencarian
   Timer? _debounce;
-  
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-
   final BloggerService _bloggerService = BloggerService();
   final List<String> gendingLabels = ["Tayub", "Ladrang", "Slendro", "Pelog", "Ketawang", "Ayak"];
 
@@ -128,21 +95,10 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
   Future<void> _initApp() async {
     await Future.delayed(const Duration(seconds: 3));
     if (mounted) setState(() => isSplashing = false);
-    
     await _loadOfflineData();
     _fetchInitialFeed();
     _fetchSitemap();
     _scrollController.addListener(_scrollListener);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_scrollListener);
-    _debounce?.cancel();
-    _searchFocusNode.dispose();
-    _scrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
   }
 
   void _scrollListener() {
@@ -153,14 +109,10 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
     }
   }
 
-  // POINT 1: Fungsi Pre-Processing (Dijalankan sekali saat data tiba)
   String? _preProcessSvg(String content) {
     final RegExp svgExp = RegExp(r"<svg[\s\S]*?<\/svg>");
-    final RegExp garbageExp = RegExp(r"<(style|metadata|defs|desc|title)[\s\S]*?<\/\1>|[a-zA-Z0-9\-]+:attribute|");
     final Match? match = svgExp.firstMatch(content);
-    if (match != null) {
-      return match.group(0)!.replaceAll(garbageExp, "");
-    }
+    if (match != null) return match.group(0)!.replaceAll(RegExp(r"<(style|metadata|defs|desc|title)[\s\S]*?<\/\1>|[a-zA-Z0-9\-]+:attribute|"), "");
     return null;
   }
 
@@ -175,8 +127,7 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
           String url = element.innerText;
           if (url.contains(".html")) {
             String slug = url.split('/').last.replaceAll(".html", "");
-            String cleanTitle = slug.split('_').first.replaceAll('-', ' ');
-            temp.add({'title': cleanTitle, 'url': url});
+            temp.add({'title': slug.split('_').first.replaceAll('-', ' '), 'url': url});
           }
         }
         setState(() => sitemapSuggestions = temp);
@@ -190,16 +141,10 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       final res = await _bloggerService.fetchInitialFeed();
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
-        List<Article> fetched = _parseArticles(data['items']);
-        fetched.shuffle(); 
-        setState(() {
-          feedArticles = fetched;
-          nextPageToken = data['nextPageToken'];
-        });
+        feedArticles = _parseArticles(data['items'])..shuffle();
+        nextPageToken = data['nextPageToken'];
       }
-    } catch (e) { 
-      setState(() => isOffline = true); 
-    }
+    } catch (e) { isOffline = true; }
     setState(() => isInitialLoading = false);
   }
 
@@ -211,484 +156,181 @@ class _RootNavigationState extends State<RootNavigation> with SingleTickerProvid
       final res = await http.get(Uri.parse(url));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
-        List<Article> fetched = _parseArticles(data['items']);
-        setState(() {
-          feedArticles.addAll(fetched);
-          nextPageToken = data['nextPageToken'];
-        });
-      } else {
-        setState(() => nextPageToken = null);
+        feedArticles.addAll(_parseArticles(data['items']));
+        nextPageToken = data['nextPageToken'];
       }
-    } catch (e) { setState(() => nextPageToken = null); }
+    } catch (e) {}
     setState(() => isLoadingMore = false);
   }
 
-  // POINT 3: Hybrid Search Logic
   Future<void> _handleSearch(String q) async {
     if (q.isEmpty) return;
-    
-    setState(() {
-      isSearching = true; 
-      filteredSuggestions = []; 
-      selectedArticle = null;
-      _searchController.text = q;
-      _searchFocusNode.unfocus();
-    });
-
-    await _loadOfflineData();
-    List<Article> localResults = offlineArticles.where((a) => 
-      a.title.toLowerCase().contains(q.toLowerCase())
-    ).toList();
-
+    _searchFocusNode.unfocus(); 
+    setState(() { isSearching = true; filteredSuggestions = []; selectedArticle = null; _searchController.text = q; });
     try {
       final res = await _bloggerService.searchPosts(q);
       if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        List<Article> apiResults = _parseArticles(data['items']);
-        
-        // Gabungkan: Online di atas, Offline di bawah (Trafik Aman)
-        for (var local in localResults) {
-          if (!apiResults.any((api) => api.id == local.id)) {
-            apiResults.add(local); 
-          }
-        }
-        setState(() { searchResults = apiResults; _currentTab = 0; isOffline = false; });
-      } else {
-        setState(() { searchResults = localResults; _currentTab = 0; });
-      }
-    } catch (e) {
-      setState(() { searchResults = localResults; _currentTab = 0; });
-    }
+        final api = _parseArticles(json.decode(res.body)['items']);
+        setState(() { searchResults = api; _currentTab = 0; isOffline = false; });
+      } else { _searchOfflineLocally(q); }
+    } catch (e) { _searchOfflineLocally(q); }
     setState(() => isSearching = false);
+  }
+
+  void _searchOfflineLocally(String q) async {
+    await _loadOfflineData();
+    List<Article> local = offlineArticles.where((a) => a.title.toLowerCase().contains(q.toLowerCase())).toList();
+    setState(() { searchResults = local; _currentTab = 0; });
   }
 
   Future<void> _openFromSitemap(String url) async {
     setState(() { isSearching = true; filteredSuggestions = []; });
     try {
-      final pathUri = Uri.parse(url).path;
-      final apiUri = "https://www.googleapis.com/blogger/v3/blogs/${_bloggerService.blogId}/posts/bypath?path=$pathUri&key=${_bloggerService.apiKey}";
-      final res = await http.get(Uri.parse(apiUri));
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        setState(() {
-          selectedArticle = _parseArticles([data]).first;
-          _searchController.clear();
-          _searchFocusNode.unfocus();
-        });
-      }
-    } catch (e) { debugPrint("Direct open error: $e"); }
+      final res = await http.get(Uri.parse("https://www.googleapis.com/blogger/v3/blogs/${_bloggerService.blogId}/posts/bypath?path=${Uri.parse(url).path}&key=${_bloggerService.apiKey}"));
+      if (res.statusCode == 200) setState(() { selectedArticle = _parseArticles([json.decode(res.body)]).first; _searchController.clear(); _searchFocusNode.unfocus(); });
+    } catch (e) {}
     setState(() => isSearching = false);
   }
 
   List<Article> _parseArticles(dynamic items) {
     if (items == null) return [];
-    return List<Article>.from(items.map((i) {
-      String content = i['content'] ?? "";
-      // POINT 1: Lakukan Pre-processing di sini!
-      return Article(
-        id: i['id'], title: i['title'], content: content, url: i['url'],
-        labels: List<String>.from(i['labels'] ?? []),
-        cleanSvg: _preProcessSvg(content) 
-      );
-    }));
+    return List<Article>.from(items.map((i) => Article(id: i['id'], title: i['title'], content: i['content'] ?? "", url: i['url'], labels: List<String>.from(i['labels'] ?? []), cleanSvg: _preProcessSvg(i['content'] ?? ""))));
   }
 
   Future<void> _loadOfflineData() async {
     final db = await DatabaseHelper.getDatabase();
-    final List<Map<String, dynamic>> maps = await db.query('offline_posts');
-    setState(() {
-      offlineArticles = maps.map((e) {
-        String content = e['content'].toString();
-        return Article(
-          id: e['id'].toString(), title: e['title'].toString(),
-          content: content, url: e['url'].toString(),
-          labels: List<String>.from(json.decode(e['labels']?.toString() ?? "[]")),
-          cleanSvg: _preProcessSvg(content)
-        );
-      }).toList();
-    });
+    final maps = await db.query('offline_posts');
+    setState(() { offlineArticles = maps.map((e) => Article(id: e['id'].toString(), title: e['title'].toString(), content: e['content'].toString(), url: e['url'].toString(), labels: List<String>.from(json.decode(e['labels']?.toString() ?? "[]")), cleanSvg: _preProcessSvg(e['content'].toString()))).toList(); });
   }
 
-  void _resetSearch() {
-    _searchController.clear();
-    _searchFocusNode.unfocus();
-    setState(() {
-      searchResults = [];
-      filteredSuggestions = [];
-      isSearching = false;
-    });
+  void _resetSearch() { _searchController.clear(); _searchFocusNode.unfocus(); setState(() { searchResults = []; filteredSuggestions = []; isSearching = false; }); }
+
+  void _showInternalPage(String title, String content) {
+    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))), builder: (context) => Container(padding: const EdgeInsets.all(24), height: MediaQuery.of(context).size.height * 0.5, child: Column(children: [Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red)), const SizedBox(height: 15), Expanded(child: SingleChildScrollView(child: Text(content, style: const TextStyle(fontSize: 16, height: 1.5)))), const SizedBox(height: 20), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text("Tutup", style: TextStyle(color: Colors.white))))])));
   }
 
   @override
   Widget build(BuildContext context) {
+    // KEMBALIKAN SPLASH SCREEN KE MAIN.DART
     if (isSplashing) {
       return Scaffold(
-        backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+        backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white, 
         body: Center(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center, 
             children: [
-              TweenAnimationBuilder(
-                duration: const Duration(seconds: 2),
-                tween: Tween<double>(begin: 0, end: 1),
-                builder: (context, double value, child) {
-                  return Opacity(
-                    opacity: value,
-                    child: Transform.scale(scale: 0.8 + (0.2 * value), child: child),
-                  );
-                },
-                child: Image.asset('assets/logo.png', height: 100, 
-                  errorBuilder: (c, e, s) => const Icon(Icons.play_circle_fill, color: Colors.red, size: 100)),
-              ),
-              const SizedBox(height: 20),
-              const Text("SinsangNot", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: -1)),
-            ],
-          ),
-        ),
+              Image.asset('assets/logo.png', height: 100, errorBuilder: (c,e,s) => const Icon(Icons.play_circle_fill, size: 100, color: Colors.red)), 
+              const SizedBox(height: 20), 
+              const Text("SinsangNot", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24))
+            ]
+          )
+        )
       );
     }
 
+    final header = HeaderWidget(
+      isDarkMode: widget.isDarkMode,
+      isLoading: isInitialLoading || isSearching || isLoadingMore,
+      searchController: _searchController,
+      searchFocusNode: _searchFocusNode,
+      filteredSuggestions: filteredSuggestions,
+      onSearchSubmitted: _handleSearch,
+      onSearchChanged: (val) {
+        if (_debounce?.isActive ?? false) _debounce!.cancel();
+        _debounce = Timer(const Duration(milliseconds: 500), () {
+          if (val.isEmpty) { setState(() => filteredSuggestions = []); } 
+          else { 
+            setState(() => filteredSuggestions = sitemapSuggestions
+              .where((s) => s['title']!.toLowerCase().contains(val.toLowerCase()))
+              .take(5).toList()); 
+          }
+        });
+      },
+      onSitemapTap: _openFromSitemap,
+      onResetSearch: _resetSearch,
+      onLogoTap: () { _resetSearch(); setState(() { _currentTab = 0; selectedArticle = null; }); },
+    );
+
     return WillPopScope(
-      onWillPop: () async {
-        if (selectedArticle != null) { setState(() => selectedArticle = null); return false; }
-        if (_searchController.text.isNotEmpty) { _resetSearch(); return false; }
-        if (_currentTab != 0) { setState(() => _currentTab = 0); return false; }
-        return true;
-      },
+      onWillPop: () async { if (selectedArticle != null) { setState(() => selectedArticle = null); return false; } if (_searchController.text.isNotEmpty) { _resetSearch(); return false; } if (_currentTab != 0) { setState(() => _currentTab = 0); return false; } return true; },
       child: Scaffold(
-        appBar: AppBar(title: _buildYouTubeHeader(), elevation: 0),
-        body: Stack(
-          children: [
-            RefreshIndicator(
-              color: Colors.red,
-              onRefresh: _fetchInitialFeed, 
-              child: selectedArticle != null 
-                ? ArticleReader(
-                    id: selectedArticle!.id, title: selectedArticle!.title,
-                    content: selectedArticle!.content, url: selectedArticle!.url,
-                    labels: selectedArticle!.labels,
-                    isDarkMode: widget.isDarkMode,
-                    onClose: () => setState(() => selectedArticle = null),
-                    onLoadStart: () => {}, onLoadEnd: () => {},
-                  )
-                : _buildTabContent(),
-            ),
-            if (filteredSuggestions.isNotEmpty) _buildFloatingSuggestions(),
-          ],
-        ),
-        bottomNavigationBar: _buildYouTubeFooter(),
-      ),
-    );
-  }
-
-  Widget _buildYouTubeHeader() {
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: () { _resetSearch(); setState(() { _currentTab = 0; selectedArticle = null; }); },
-          child: Image.asset('assets/logo.png', height: 28, errorBuilder: (c, e, s) => const Icon(Icons.play_circle_fill, color: Colors.red)),
-        ),
-        const SizedBox(width: 4),
-        const Text("SinsangNot", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: -1)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Container(
-            height: 36,
-            decoration: BoxDecoration(
-              color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
-              borderRadius: BorderRadius.circular(20)),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              onChanged: (val) {
-                // POINT 5: Debouncing Logic
-                if (_debounce?.isActive ?? false) _debounce!.cancel();
-                _debounce = Timer(const Duration(milliseconds: 500), () {
-                  if (val.isEmpty) {
-                    setState(() => filteredSuggestions = []);
-                  } else {
-                    final List<Map<String, String>> temp = sitemapSuggestions
-                        .where((s) => s['title']!.toLowerCase().contains(val.toLowerCase()))
-                        .toList();
-                    setState(() => filteredSuggestions = temp.take(5).toList());
-                    
-                    // POINT 3: Trigger pencarian offline otomatis jika sedang offline
-                    if (isOffline) {
-                      _handleSearch(val);
-                    }
-                  }
-                });
-              },
-              onSubmitted: (val) => _handleSearch(val),
-              style: const TextStyle(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: "Cari...",
-                prefixIcon: const Icon(Icons.search, size: 18),
-                suffixIcon: _searchController.text.isNotEmpty 
-                  ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: _resetSearch) 
-                  : null,
-                border: InputBorder.none, 
-                contentPadding: const EdgeInsets.only(bottom: 12)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFloatingSuggestions() {
-    return Positioned(
-      top: 0, left: 60, right: 16,
-      child: Material(
-        elevation: 4, borderRadius: BorderRadius.circular(8),
-        color: (widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white).withOpacity(0.95),
-        child: ListView.separated(
-          padding: EdgeInsets.zero, shrinkWrap: true,
-          itemCount: filteredSuggestions.length,
-          separatorBuilder: (c, i) => Divider(height: 1, color: Colors.grey.withOpacity(0.2)),
-          itemBuilder: (c, i) => ListTile(
-            dense: true, visualDensity: VisualDensity.compact,
-            leading: const Icon(Icons.history, size: 18, color: Colors.red),
-            title: Text(filteredSuggestions[i]['title']!, style: const TextStyle(fontSize: 14)),
-            onTap: () => _openFromSitemap(filteredSuggestions[i]['url']!),
-          ),
+        appBar: header,
+        body: Stack(children: [
+          RefreshIndicator(color: Colors.red, onRefresh: _fetchInitialFeed, child: selectedArticle != null ? ArticleReader(id: selectedArticle!.id, title: selectedArticle!.title, content: selectedArticle!.content, url: selectedArticle!.url, labels: selectedArticle!.labels, isDarkMode: widget.isDarkMode, onClose: () => setState(() => selectedArticle = null), onLoadStart: () => {}, onLoadEnd: () => {}) : _buildTabContent()),
+          header.buildFloatingSuggestions(context),
+        ]),
+        bottomNavigationBar: FooterWidget(
+          currentTab: _currentTab,
+          isDarkMode: widget.isDarkMode,
+          onTabTap: (i) { _resetSearch(); setState(() { _currentTab = i; selectedArticle = null; }); if (i == 2) _loadOfflineData(); },
+          onThemeChanged: (v) => widget.updateTheme(v),
+          showInternalPage: _showInternalPage,
+          gendingLabels: gendingLabels,
+          onLabelTap: _handleSearch,
         ),
       ),
-    );
-  }
-
-  Widget _buildYouTubeFooter() {
-    return BottomNavigationBar(
-      currentIndex: _currentTab,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: widget.isDarkMode ? Colors.white : Colors.black,
-      unselectedItemColor: Colors.grey,
-      onTap: (i) {
-        _resetSearch();
-        setState(() { _currentTab = i; selectedArticle = null; });
-        if (i == 2) _loadOfflineData();
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
-        BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Jelajah'),
-        BottomNavigationBarItem(icon: Icon(Icons.download_done), label: 'Koleksi'),
-        BottomNavigationBarItem(icon: Icon(Icons.menu), label: 'Menu'), 
-      ],
     );
   }
 
   Widget _buildTabContent() {
-    // POINT 4: Skeleton Loading (Hanya saat awal)
     if (isInitialLoading || isSearching) return _buildSkeletonList();
-
-    // POINT 3: Prioritas Pencarian (Hasil cari tetap tampil walau offline)
-    if (isOffline && _currentTab == 0 && feedArticles.isEmpty && searchResults.isEmpty && _searchController.text.isEmpty) {
-      return _buildOfflineError();
-    }
+    if (isOffline && _currentTab == 0 && feedArticles.isEmpty && searchResults.isEmpty && _searchController.text.isEmpty) return _buildOfflineError();
+    
+    final footerUI = FooterWidget(currentTab: _currentTab, isDarkMode: widget.isDarkMode, onTabTap: (i){}, onThemeChanged: widget.updateTheme, showInternalPage: _showInternalPage, gendingLabels: gendingLabels, onLabelTap: _handleSearch);
 
     switch (_currentTab) {
       case 0: return _buildArticleList(_searchController.text.isNotEmpty ? searchResults : feedArticles);
-      case 1: return _buildJelajah();
+      case 1: return footerUI.buildJelajah();
       case 2: return _buildArticleList(offlineArticles, isOfflineTab: true);
-      case 3: return _buildSetelan();
+      case 3: return footerUI.buildSetelan();
       default: return _buildArticleList(feedArticles);
     }
   }
 
-  // POINT 4: Skeleton UI Component
-  Widget _buildSkeletonList() {
-    return ListView.builder(
-      itemCount: 5,
-      itemBuilder: (c, i) => Padding(
-        padding: const EdgeInsets.only(bottom: 20),
-        child: Column(
-          children: [
-            Container(height: 200, color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]),
-            ListTile(
-              leading: CircleAvatar(backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.grey[200]),
-              title: Container(height: 15, color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]),
-              subtitle: Container(height: 10, width: 100, color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOfflineError() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.wifi_off, size: 80, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text("Maaf anda sedang offline.", style: TextStyle(color: Colors.grey)),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => setState(() => _currentTab = 2),
-            child: const Text("Buka Koleksi", style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-    );
-  }
-
+  Widget _buildSkeletonList() => ListView.builder(itemCount: 5, itemBuilder: (c, i) => Padding(padding: const EdgeInsets.only(bottom: 20), child: Column(children: [Container(height: 200, color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]), ListTile(leading: CircleAvatar(backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.grey[200]), title: Container(height: 15, color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]))])));
+  Widget _buildOfflineError() => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.wifi_off, size: 80, color: Colors.grey), const Text("Maaf anda sedang offline."), const SizedBox(height: 20), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => setState(() => _currentTab = 2), child: const Text("Buka Koleksi", style: TextStyle(color: Colors.white)))]));
+  
   Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
     if (list.isEmpty) return Center(child: Text(isOfflineTab ? "Belum ada koleksi." : "Hasil tidak ditemukan."));
-    
-    return ListView.builder(
-      controller: _currentTab == 0 ? _scrollController : null,
-      itemCount: list.length + (isLoadingMore && _currentTab == 0 ? 1 : 0),
-      itemBuilder: (c, i) {
-        if (i == list.length) return const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: Colors.red)));
-        
-        final a = list[i];
-        
-        // POINT 2: RepaintBoundary untuk mengunci render SVG
-        return RepaintBoundary(
-          child: Column(
-            children: [
-              InkWell(
-                onTap: () => setState(() => selectedArticle = a), 
-                child: _getThumbnailOptimized(a)
-              ),
-              ListTile(
-                onTap: () => setState(() => selectedArticle = a),
-                leading: const CircleAvatar(backgroundColor: Colors.red, child: Icon(Icons.music_note, color: Colors.white, size: 20)),
-                title: Text(a.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                subtitle: Text(isOfflineTab ? "Tersedia Offline" : "Sinsangnot • ${a.labels.isNotEmpty ? a.labels.first : 'Gending'}"),
-                trailing: isOfflineTab 
-                  ? IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _confirmDelete(a))
-                  : const Icon(Icons.more_vert, size: 18),
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
-    );
+    return ListView.builder(controller: _currentTab == 0 ? _scrollController : null, itemCount: list.length + (isLoadingMore && _currentTab == 0 ? 1 : 0), itemBuilder: (c, i) {
+      if (i == list.length) return const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: Colors.red)));
+      final a = list[i];
+      return Column(children: [InkWell(onTap: () => setState(() => selectedArticle = a), child: _getThumbnailOptimized(a)), ListTile(onTap: () => setState(() => selectedArticle = a), leading: const CircleAvatar(backgroundColor: Colors.red, child: Icon(Icons.music_note, color: Colors.white, size: 20)), title: Text(a.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), subtitle: Text(isOfflineTab ? "Tersedia Offline" : "Sinsangnot • ${a.labels.isNotEmpty ? a.labels.first : 'Gending'}"), trailing: isOfflineTab ? IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _confirmDelete(a)) : const Icon(Icons.more_vert, size: 18)), const SizedBox(height: 12)]);
+    });
   }
 
-  // POINT 1: Fungsi Thumbnail yang sangat ringan (Tanpa Regex)
+  // LOGIKA THUMBNAIL BERBASIS LABEL (SESUAI PERMINTAAN)
   Widget _getThumbnailOptimized(Article a) {
-    if (a.cleanSvg != null) {
-      return Container(
-        width: double.infinity, height: 200, 
-        color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
-        child: ClipRect(
-          child: OverflowBox(
-            alignment: Alignment.topCenter, maxHeight: 600, 
-            child: SvgPicture.string(
-              a.cleanSvg!, 
-              // POINT 1: Memcached SVG agar RAM tidak bocor
-              placeholderBuilder: (context) => const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))),
-              colorFilter: widget.isDarkMode ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null,
-            )
-          )
-        ),
-      );
+    String assetPath = 'assets/gong6.png'; 
+    String labelsText = a.labels.join(' ').toLowerCase();
+
+    if (labelsText.contains('ketawang')) {
+      assetPath = 'assets/ketawang.png';
+    } else if (labelsText.contains('ladrang')) {
+      assetPath = 'assets/ladrang.png';
+    } else if (labelsText.contains('ayak')) {
+      assetPath = 'assets/ayak.png';
+    } else if (labelsText.contains('tayub')) {
+      assetPath = 'assets/gong1.png';
+    } else if (labelsText.contains('slendro')) {
+      assetPath = 'assets/gong2.png';
+    } else if (labelsText.contains('pelog')) {
+      assetPath = 'assets/gong3.png';
+    } else if (labelsText.contains('gending')) {
+      assetPath = 'assets/gong5.png';
     }
+
     return Container(
-      width: double.infinity, height: 200, 
+      width: double.infinity, 
+      height: 180, 
       color: widget.isDarkMode ? Colors.white10 : Colors.grey[200],
-      child: const Icon(Icons.music_video, size: 50, color: Colors.red),
-    );
-  }
-
-  void _confirmDelete(Article a) {
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text("Hapus Koleksi?"),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")),
-        TextButton(onPressed: () async {
-          final db = await DatabaseHelper.getDatabase();
-          await db.delete('offline_posts', where: 'id = ?', whereArgs: [a.id]);
-          Navigator.pop(c); _loadOfflineData();
-        }, child: const Text("Hapus", style: TextStyle(color: Colors.red))),
-      ],
-    ));
-  }
-
-  Widget _buildJelajah() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("Kategori Gending", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 20, runSpacing: 25,
-            children: gendingLabels.map((l) {
-              return InkWell(
-                onTap: () => _handleSearch(l),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 30, backgroundColor: Colors.red,
-                      child: Text(l[0], style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(l, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
+      child: Image.asset(
+        assetPath,
+        fit: BoxFit.contain, 
+        errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_video, size: 50, color: Colors.red),
       ),
     );
   }
 
-  Widget _buildSetelan() {
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      children: [
-        SwitchListTile(
-          title: const Text("Tema Gelap"), secondary: const Icon(Icons.dark_mode),
-          value: widget.isDarkMode, onChanged: (v) => widget.updateTheme(v),
-        ),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.info_outline), title: const Text("Tentang Sinsangnot"), 
-          onTap: () => _showInternalPage("Tentang", "Sinsangnot adalah perpustakaan digital notasi gending Jawa berkualitas tinggi."),
-        ),
-        ListTile(
-          leading: const Icon(Icons.verified_user_outlined), title: const Text("Privacy Policy"), 
-          onTap: () => _showInternalPage("Privacy", "Kami menjamin data koleksi offline Anda tersimpan aman secara lokal."),
-        ),
-        ListTile(
-          leading: const Icon(Icons.gavel_outlined), title: const Text("Disclaimer"), 
-          onTap: () => _showInternalPage("Disclaimer", "Seluruh notasi adalah hasil digitalisasi kreatif untuk tujuan pelestarian budaya."),
-        ),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.favorite, color: Colors.red), 
-          title: const Text("Donasi Kreator"), subtitle: const Text("Dukung pelestarian notasi Jawa"),
-          onTap: () => launchUrl(Uri.parse("https://link.dana.id/qr/MASUKKAN_ID_DANA_KAMU")), 
-        ),
-      ],
-    );
-  }
-
-  void _showInternalPage(String title, String content) {
-    showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24), height: MediaQuery.of(context).size.height * 0.5,
-        child: Column(
-          children: [
-            Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red)),
-            const SizedBox(height: 15),
-            Expanded(child: SingleChildScrollView(child: Text(content, style: const TextStyle(fontSize: 16, height: 1.5)))),
-            const SizedBox(height: 20),
-            SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text("Tutup", style: TextStyle(color: Colors.white))))
-          ],
-        ),
-      ),
-    );
-  }
+  void _confirmDelete(Article a) { showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Hapus Koleksi?"), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")), TextButton(onPressed: () async { final db = await DatabaseHelper.getDatabase(); await db.delete('offline_posts', where: 'id = ?', whereArgs: [a.id]); Navigator.pop(c); _loadOfflineData(); }, child: const Text("Hapus", style: TextStyle(color: Colors.red)))])); }
 }

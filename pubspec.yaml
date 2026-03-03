@@ -73,6 +73,15 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/gong1.png
+    - assets/gong2.png
+    - assets/gong3.png
+    - assets/gong5.png
+    - assets/gong6.png
+    - assets/ladrang.png
+    - assets/ketawang.png
+    - assets/ayak.png
+    - assets/default.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
