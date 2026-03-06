@@ -4,13 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ArticleReader extends StatefulWidget {
   final String id;
   final String title;
-  final String content; // Awalnya akan kosong dari main.dart
+  final String content;
   final String url;
   final List<String> labels; 
   final bool isDarkMode;
@@ -36,50 +35,12 @@ class ArticleReader extends StatefulWidget {
 
 class _ArticleReaderState extends State<ArticleReader> {
   late final WebViewController controller;
-  String _currentContent = "";
-  bool _isDownloading = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _currentContent = widget.content;
     _initWebView();
-    
-    // Jika konten kosong (karena sistem RSS baru), kita download isinya sekarang
-    if (_currentContent.isEmpty) {
-      _downloadFullContent();
-    }
-  }
-
-  // Fungsi untuk mengambil isi artikel secara utuh (On-Demand)
-  Future<void> _downloadFullContent() async {
-    setState(() => _isDownloading = true);
-    widget.onLoadStart();
-    try {
-      final response = await http.get(Uri.parse(widget.url));
-      if (response.statusCode == 200) {
-        // Kita ambil HTML mentah dan biarkan WebView yang me-render
-        // Ini jauh lebih ringan daripada parsing manual yang rumit
-        setState(() {
-          _currentContent = response.body;
-          _isDownloading = false;
-        });
-        controller.loadHtmlString(_buildHtml(widget.isDarkMode));
-      }
-    } catch (e) {
-      setState(() => _isDownloading = false);
-      debugPrint("Download error: $e");
-    }
-    widget.onLoadEnd();
-  }
-
-  @override
-  void didUpdateWidget(ArticleReader oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.isDarkMode != widget.isDarkMode) {
-      controller.setBackgroundColor(widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white);
-      controller.loadHtmlString(_buildHtml(widget.isDarkMode));
-    }
   }
 
   void _initWebView() {
@@ -88,77 +49,77 @@ class _ArticleReaderState extends State<ArticleReader> {
       ..setBackgroundColor(widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (url) => widget.onLoadStart(),
-          onPageFinished: (url) => widget.onLoadEnd(),
+          onPageStarted: (url) {
+            setState(() => _isLoading = true);
+            widget.onLoadStart();
+          },
+          onPageFinished: (url) {
+            _applyStylesAndTheme();
+            setState(() => _isLoading = false);
+            widget.onLoadEnd();
+          },
         ),
       )
-      ..loadHtmlString(_buildHtml(widget.isDarkMode));
+      ..loadRequest(Uri.parse(widget.url));
   }
 
-  String _buildHtml(bool isDark) {
-    final lirikBg = isDark ? "#1a1a1a" : "#f5f5f5";
-    final textColor = isDark ? "#ffffff" : "#0F0F0F";
-    final bgColor = isDark ? "#0F0F0F" : "#ffffff";
+  // --- KUNCI SINKRONISASI TEMA & PEMBERSIHAN ---
+  void _applyStylesAndTheme() {
+    // 1. Atur atribut tema sesuai APK
+    String themeValue = widget.isDarkMode ? 'dark' : 'light';
+    
+    // 2. CSS untuk menyembunyikan header dan judul sesuai template blog Anda
+    String css = """
+      /* Sembunyikan Header, Navigasi, dan Footer blog */
+      header, .nav-content, .theme-wrapper, .footer-content, #header, .post-title, .entry-title { 
+        display: none !important; 
+      }
+      /* Hilangkan margin/padding berlebih agar pas di layar APK */
+      body, .main-content { 
+        padding-top: 0 !important; 
+        margin-top: 0 !important; 
+      }
+      .post-body { padding: 10px !important; }
+    """;
 
-    return """
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<style>
-  html, body {
-    font-family: 'Roboto', sans-serif;
-    line-height: 1.6;
-    color: $textColor;
-    background: $bgColor;
-    margin: 0;
-    padding: 12px;
-    overflow-x: hidden;
+    // Eksekusi JavaScript di dalam WebView
+    controller.runJavaScript("""
+      (function() {
+        // Terapkan Tema
+        if ('$themeValue' === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+        }
+        
+        // Suntikkan CSS Pembersih
+        var style = document.createElement('style');
+        style.innerHTML = `$css`;
+        document.head.appendChild(style);
+      })();
+    """);
   }
 
-  /* Menyembunyikan elemen blog yang tidak perlu */
-  .header, .footer, .sidebar, .comments, #header, #footer { display: none !important; }
-
-  .lirik, pre {
-    background-color: $lirikBg;
-    color: $textColor;
-    padding: 15px;
-    border-left: 5px solid #FF0000;
-    margin: 15px 0;
-    font-size: 15px;
-    white-space: pre-wrap;
-    word-break: break-word;
-    border-radius: 4px;
-  }
-
-  svg { 
-    max-width: 100% !important; 
-    height: auto !important; 
-    display: block; 
-    margin: 10px auto; 
-  }
-  ${isDark ? 'svg { filter: invert(1) hue-rotate(180deg); }' : ''}
-  img { max-width: 100%; height: auto; border-radius: 8px; }
-</style>
-</head>
-<body>
-  <h2 style="color: #FF0000;">${widget.title}</h2>
-  $_currentContent
-  <div style="height: 100px;"></div> 
-</body>
-</html>
-""";
+  @override
+  void didUpdateWidget(ArticleReader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isDarkMode != widget.isDarkMode) {
+      _applyStylesAndTheme();
+    }
   }
 
   Future<void> _saveOffline() async {
     try {
+      // Kita ambil HTML saat ini untuk simpan offline
+      final String? html = await controller.runJavaScriptReturningResult("document.documentElement.outerHTML") as String?;
+      
       final dbPath = await getDatabasesPath();
       final db = await openDatabase(p.join(dbPath, 'puska.db'), version: 3);
       
       await db.insert('offline_posts', {
         'id': widget.id,
         'title': widget.title,
-        'content': _currentContent, // Simpan konten yang sudah lengkap
+        'content': html ?? "", 
         'url': widget.url,
         'label': widget.labels.isNotEmpty ? widget.labels.first : "Gending"
       }, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -188,12 +149,15 @@ class _ArticleReaderState extends State<ArticleReader> {
               Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
             },
           ),
-          if (_isDownloading)
-            const Center(child: CircularProgressIndicator(color: Colors.red)),
+          if (_isLoading)
+            Container(
+              color: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+              child: const Center(child: CircularProgressIndicator(color: Colors.red)),
+            ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _isDownloading ? null : _saveOffline,
+        onPressed: _isLoading ? null : _saveOffline,
         backgroundColor: Colors.red,
         mini: true, 
         child: const Icon(Icons.download_for_offline, color: Colors.white),
