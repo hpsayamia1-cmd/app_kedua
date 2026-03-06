@@ -1,24 +1,80 @@
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:xml/xml.dart'; // Pastikan tambahkan 'xml' di pubspec.yaml
 
 class BloggerService {
-  final String blogId = "1371452320359744712";
-  final String apiKey = "AIzaSyAiBqwqM8EwffLlkslJyLBjSkCWF8DpwDQ";
+  // Kita tidak lagi butuh API Key di sini untuk keamanan GitHub
+  final String blogUrl = "https://sinsangnot.blogspot.com";
 
-  // Fungsi untuk mengambil feed beranda
-  Future<http.Response> fetchInitialFeed() async {
-    final url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts?key=$apiKey&maxResults=8";
-    return await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+  // 1. FUNGSI FEED BERANDA (TANPA API KEY)
+  // Mengambil 8 postingan terbaru (Hanya Judul & Label agar enteng)
+  Future<List<Map<String, dynamic>>> fetchInitialFeed() async {
+    try {
+      final response = await http
+          .get(Uri.parse("$blogUrl/feeds/posts/default?max-results=8"))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        return _parseAtomFeed(response.body);
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 
-  // Fungsi untuk pencarian online
-  Future<http.Response> searchPosts(String query) async {
-    final url = "https://www.googleapis.com/blogger/v3/blogs/$blogId/posts/search?q=${Uri.encodeComponent(query)}&key=$apiKey";
-    return await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+  // 2. FUNGSI PENCARIAN ONLINE (RINGAN & AMAN)
+  Future<List<Map<String, dynamic>>> searchPosts(String query) async {
+    try {
+      final url = "$blogUrl/feeds/posts/default?q=${Uri.encodeComponent(query)}";
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        return _parseAtomFeed(response.body);
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
-  
-  // Fungsi untuk ambil sitemap
+
+  // 3. FUNGSI PARSING DATA (JUDUL & LABEL SAJA)
+  // Ini yang membuat aplikasi Anda kembali 'enteng' seperti dulu
+  List<Map<String, dynamic>> _parseAtomFeed(String xmlBody) {
+    final document = XmlDocument.parse(xmlBody);
+    final List<Map<String, dynamic>> posts = [];
+
+    for (var entry in document.findAllElements('entry')) {
+      // Ambil Judul Asli (Bukan Link)
+      String title = entry.findElements('title').first.innerText;
+      
+      // Ambil Label Tunggal (Gong-1, Ladrang, dll)
+      String label = "Gending"; // Default
+      var categories = entry.findElements('category');
+      if (categories.isNotEmpty) {
+        label = categories.first.getAttribute('term') ?? "Gending";
+      }
+
+      // Ambil Link untuk keperluan download isi nantinya
+      String link = "";
+      var links = entry.findElements('link');
+      for (var l in links) {
+        if (l.getAttribute('rel') == 'alternate') {
+          link = l.getAttribute('href') ?? "";
+        }
+      }
+
+      posts.add({
+        'title': title,
+        'label': label,
+        'url': link,
+        'content': "", // Kosongkan dulu agar Beranda tidak berat
+      });
+    }
+    return posts;
+  }
+
+  // 4. FUNGSI AMBIL SITEMAP
   Future<http.Response> fetchSitemap() async {
-    return await http.get(Uri.parse("https://sinsangnot.blogspot.com/sitemap.xml"));
+    return await http.get(Uri.parse("$blogUrl/sitemap.xml"));
   }
 }

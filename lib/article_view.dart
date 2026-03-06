@@ -5,11 +5,12 @@ import 'package:flutter/gestures.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class ArticleReader extends StatefulWidget {
   final String id;
   final String title;
-  final String content;
+  final String content; // Awalnya akan kosong dari main.dart
   final String url;
   final List<String> labels; 
   final bool isDarkMode;
@@ -35,17 +36,47 @@ class ArticleReader extends StatefulWidget {
 
 class _ArticleReaderState extends State<ArticleReader> {
   late final WebViewController controller;
+  String _currentContent = "";
+  bool _isDownloading = false;
 
   @override
   void initState() {
     super.initState();
+    _currentContent = widget.content;
     _initWebView();
+    
+    // Jika konten kosong (karena sistem RSS baru), kita download isinya sekarang
+    if (_currentContent.isEmpty) {
+      _downloadFullContent();
+    }
+  }
+
+  // Fungsi untuk mengambil isi artikel secara utuh (On-Demand)
+  Future<void> _downloadFullContent() async {
+    setState(() => _isDownloading = true);
+    widget.onLoadStart();
+    try {
+      final response = await http.get(Uri.parse(widget.url));
+      if (response.statusCode == 200) {
+        // Kita ambil HTML mentah dan biarkan WebView yang me-render
+        // Ini jauh lebih ringan daripada parsing manual yang rumit
+        setState(() {
+          _currentContent = response.body;
+          _isDownloading = false;
+        });
+        controller.loadHtmlString(_buildHtml(widget.isDarkMode));
+      }
+    } catch (e) {
+      setState(() => _isDownloading = false);
+      debugPrint("Download error: $e");
+    }
+    widget.onLoadEnd();
   }
 
   @override
   void didUpdateWidget(ArticleReader oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.content != widget.content || oldWidget.isDarkMode != widget.isDarkMode) {
+    if (oldWidget.id != widget.id || oldWidget.isDarkMode != widget.isDarkMode) {
       controller.setBackgroundColor(widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white);
       controller.loadHtmlString(_buildHtml(widget.isDarkMode));
     }
@@ -85,11 +116,8 @@ class _ArticleReaderState extends State<ArticleReader> {
     overflow-x: hidden;
   }
 
-  .post-title-full, h1.post-title, .entry-title, .post-header,
-  .header-outer, .nav-outer, .footer-outer, .comments, .sidebar { 
-    display: none !important; 
-    visibility: hidden !important;
-  }
+  /* Menyembunyikan elemen blog yang tidak perlu */
+  .header, .footer, .sidebar, .comments, #header, #footer { display: none !important; }
 
   .lirik, pre {
     background-color: $lirikBg;
@@ -111,11 +139,11 @@ class _ArticleReaderState extends State<ArticleReader> {
   }
   ${isDark ? 'svg { filter: invert(1) hue-rotate(180deg); }' : ''}
   img { max-width: 100%; height: auto; border-radius: 8px; }
-  .post-body { padding: 0 !important; }
 </style>
 </head>
 <body>
-  ${widget.content}
+  <h2 style="color: #FF0000;">${widget.title}</h2>
+  $_currentContent
   <div style="height: 100px;"></div> 
 </body>
 </html>
@@ -130,24 +158,17 @@ class _ArticleReaderState extends State<ArticleReader> {
       await db.insert('offline_posts', {
         'id': widget.id,
         'title': widget.title,
-        'content': widget.content,
+        'content': _currentContent, // Simpan konten yang sudah lengkap
         'url': widget.url,
-        'labels': json.encode(widget.labels)
+        'label': widget.labels.isNotEmpty ? widget.labels.first : "Gending"
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 10),
-              Text("Berhasil disimpan ke Koleksi"),
-            ],
-          ),
+          content: Text("Berhasil disimpan ke Koleksi"),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
         ),
       );
     } catch (e) {
@@ -159,17 +180,22 @@ class _ArticleReaderState extends State<ArticleReader> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      body: WebViewWidget(
-        controller: controller,
-        gestureRecognizers: {
-          Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
-        },
+      body: Stack(
+        children: [
+          WebViewWidget(
+            controller: controller,
+            gestureRecognizers: {
+              Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer()),
+            },
+          ),
+          if (_isDownloading)
+            const Center(child: CircularProgressIndicator(color: Colors.red)),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _saveOffline,
+        onPressed: _isDownloading ? null : _saveOffline,
         backgroundColor: Colors.red,
         mini: true, 
-        tooltip: "Simpan Offline",
         child: const Icon(Icons.download_for_offline, color: Colors.white),
       ),
     );
