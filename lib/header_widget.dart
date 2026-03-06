@@ -8,7 +8,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
   final List<Map<String, String>> filteredSuggestions;
   final Function(String) onSearchSubmitted;
   final Function(String) onSearchChanged;
-  final Function(String) onSitemapTap;
+  final Function(Map<String, String>) onSitemapTap; // Mengubah parameter ke Map agar bisa ambil judul & url
   final VoidCallback onResetSearch;
   final VoidCallback onLogoTap;
 
@@ -31,7 +31,6 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       elevation: 0,
       backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      // Menonaktifkan tombol back otomatis agar layout Row kita tetap rapi
       automaticallyImplyLeading: false, 
       title: Row(
         children: [
@@ -68,7 +67,6 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
                 decoration: InputDecoration(
                   hintText: "Cari...",
                   prefixIcon: const Icon(Icons.search, size: 18),
-                  // Tombol X muncul hanya saat ada teks
                   suffixIcon: ValueListenableBuilder<TextEditingValue>(
                     valueListenable: searchController,
                     builder: (context, value, child) {
@@ -88,8 +86,6 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ),
-      
-      // GARIS LOADING MERAH
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(2.0),
         child: isLoading 
@@ -103,39 +99,55 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  // WIDGET FLOATING SUGGESTIONS (Dipanggil di Stack pada main.dart)
+  // PERBAIKAN: Posisi sekarang dinamis menempel di bawah search bar
   Widget buildFloatingSuggestions(BuildContext context) {
     if (filteredSuggestions.isEmpty) return const SizedBox.shrink();
+    
     return Positioned(
-      top: kToolbarHeight + MediaQuery.of(context).padding.top + 2, 
-      left: 60, 
+      // Kunci posisi tepat di bawah AppBar (Toolbar + Status Bar)
+      top: kToolbarHeight + MediaQuery.of(context).padding.top - 5, 
+      left: 110, // Menyesuaikan dengan ujung logo SinsangNot
       right: 16,
       child: Material(
-        elevation: 6, 
-        borderRadius: BorderRadius.circular(8),
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        elevation: 8, 
+        borderRadius: BorderRadius.circular(12),
+        // Transparansi sedikit agar terlihat melayang (Overlay)
+        color: isDarkMode ? const Color(0xFF1E1E1E).withOpacity(0.95) : Colors.white.withOpacity(0.98),
         child: Container(
+          constraints: const BoxConstraints(maxHeight: 250), // Batasi tinggi agar tidak menutupi semua layar
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: isDarkMode ? Colors.white10 : Colors.grey[300]!),
           ),
           child: ListView.separated(
-            padding: EdgeInsets.zero, 
+            padding: const EdgeInsets.symmetric(vertical: 5), 
             shrinkWrap: true,
             itemCount: filteredSuggestions.length,
-            separatorBuilder: (c, i) => Divider(height: 1, color: isDarkMode ? Colors.white10 : Colors.grey[200]),
-            itemBuilder: (c, i) => ListTile(
-              dense: true, 
-              visualDensity: VisualDensity.compact,
-              leading: const Icon(Icons.history, size: 18, color: Colors.grey),
-              title: Text(
-                filteredSuggestions[i]['title']!, 
-                style: const TextStyle(fontSize: 14),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onTap: () => onSitemapTap(filteredSuggestions[i]['url']!),
-            ),
+            separatorBuilder: (c, i) => Divider(height: 1, color: isDarkMode ? Colors.white10 : Colors.grey[100]),
+            itemBuilder: (c, i) {
+              final suggestion = filteredSuggestions[i];
+              return ListTile(
+                dense: true, 
+                visualDensity: VisualDensity.compact,
+                leading: const Icon(Icons.history, size: 18, color: Colors.grey),
+                title: Text(
+                  suggestion['title']!, 
+                  style: TextStyle(
+                    fontSize: 14, 
+                    fontWeight: FontWeight.w500,
+                    color: isDarkMode ? Colors.white : Colors.black87
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () {
+                  // PERBAIKAN LOGIKA: Masukkan teks ke kolom pencarian dulu
+                  searchController.text = suggestion['title']!;
+                  // Baru jalankan fungsi buka artikel
+                  onSitemapTap(suggestion);
+                },
+              );
+            },
           ),
         ),
       ),
