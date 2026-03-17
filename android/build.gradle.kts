@@ -1,12 +1,13 @@
-// TAMBAHKAN IMPORT INI DI BARIS PALING ATAS (Jika error)
 import com.android.build.gradle.BaseExtension
 
 allprojects {
     repositories {
         google()
-        mainCentral()
+        mavenCentral() // Pastikan tulisannya begini, pakai 'v'
     }
 }
+
+// ... sisanya sudah benar ...
 
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
@@ -27,7 +28,6 @@ tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
 
-// INI KODE SAKTI PENYEMBUH ERROR NAMESPACE
 subprojects {
     afterEvaluate {
         if (project.hasProperty("android")) {
