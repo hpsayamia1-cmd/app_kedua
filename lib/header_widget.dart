@@ -8,7 +8,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
   final List<Map<String, String>> filteredSuggestions;
   final Function(String) onSearchSubmitted;
   final Function(String) onSearchChanged;
-  final Function(Map<String, String>) onSitemapTap; // Mengubah parameter ke Map agar bisa ambil judul & url
+  final Function(Map<String, String>) onSitemapTap; 
   final VoidCallback onResetSearch;
   final VoidCallback onLogoTap;
 
@@ -34,7 +34,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: false, 
       title: Row(
         children: [
-          // LOGO
+          // LOGO SINSANGNOT
           GestureDetector(
             onTap: onLogoTap,
             child: Image.asset(
@@ -50,7 +50,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
           ),
           const SizedBox(width: 10),
           
-          // KOLOM PENCARIAN
+          // KOLOM PENCARIAN DINAMIS
           Expanded(
             child: Container(
               height: 38,
@@ -99,22 +99,20 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  // PERBAIKAN: Posisi sekarang dinamis menempel di bawah search bar
+  // WIDGET FLOATING SUGGESTIONS (Muncul saat mengetik)
   Widget buildFloatingSuggestions(BuildContext context) {
     if (filteredSuggestions.isEmpty) return const SizedBox.shrink();
     
     return Positioned(
-      // Kunci posisi tepat di bawah AppBar (Toolbar + Status Bar)
       top: kToolbarHeight + MediaQuery.of(context).padding.top - 5, 
-      left: 110, // Menyesuaikan dengan ujung logo SinsangNot
+      left: 110, 
       right: 16,
       child: Material(
         elevation: 8, 
         borderRadius: BorderRadius.circular(12),
-        // Transparansi sedikit agar terlihat melayang (Overlay)
         color: isDarkMode ? const Color(0xFF1E1E1E).withOpacity(0.95) : Colors.white.withOpacity(0.98),
         child: Container(
-          constraints: const BoxConstraints(maxHeight: 250), // Batasi tinggi agar tidak menutupi semua layar
+          constraints: const BoxConstraints(maxHeight: 250),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: isDarkMode ? Colors.white10 : Colors.grey[300]!),
@@ -141,9 +139,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 onTap: () {
-                  // PERBAIKAN LOGIKA: Masukkan teks ke kolom pencarian dulu
                   searchController.text = suggestion['title']!;
-                  // Baru jalankan fungsi buka artikel
                   onSitemapTap(suggestion);
                 },
               );

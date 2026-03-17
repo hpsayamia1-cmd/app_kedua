@@ -2,13 +2,14 @@ import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart'; 
 
 class BloggerService {
-  final String blogUrl = "https://sinsangnot.blogspot.com";
+  // Saya sesuaikan ke URL blog baru Mas agar langsung sinkron
+  final String blogUrl = "https://playertayub.blogspot.com";
 
-  // 1. FUNGSI AMBIL FEED (Mendukung Infinite Scroll / Pagination)
-  // Sekarang menerima startIndex untuk mengambil artikel urutan berikutnya
+  // 1. FUNGSI AMBIL FEED (Mendukung Infinite Scroll & Full Content)
   Future<List<Map<String, dynamic>>> fetchFeed({int startIndex = 1, int maxResults = 8}) async {
     try {
-      // Parameter start-index adalah kunci agar scroll tanpa batas bekerja
+      // Menambahkan alt=json atau menggunakan atom feed default 
+      // Kita tetap gunakan default tapi pastikan konten ditarik
       final url = "$blogUrl/feeds/posts/default?start-index=$startIndex&max-results=$maxResults";
       final response = await http
           .get(Uri.parse(url))
@@ -21,11 +22,6 @@ class BloggerService {
     } catch (e) {
       return [];
     }
-  }
-
-  // Alias untuk fetchInitialFeed agar tidak error di bagian kode lain jika dipanggil
-  Future<List<Map<String, dynamic>>> fetchInitialFeed() async {
-    return fetchFeed(startIndex: 1, maxResults: 8);
   }
 
   // 2. FUNGSI PENCARIAN ONLINE
@@ -43,7 +39,7 @@ class BloggerService {
     }
   }
 
-  // 3. FUNGSI PARSING DATA
+  // 3. FUNGSI PARSING DATA (PENTING: Sekarang mengambil konten artikel)
   List<Map<String, dynamic>> _parseAtomFeed(String xmlBody) {
     final document = XmlDocument.parse(xmlBody);
     final List<Map<String, dynamic>> posts = [];
@@ -51,12 +47,14 @@ class BloggerService {
     for (var entry in document.findAllElements('entry')) {
       String title = entry.findElements('title').first.innerText;
       
+      // Mengambil Label
       String label = "Gending"; 
       var categories = entry.findElements('category');
       if (categories.isNotEmpty) {
         label = categories.first.getAttribute('term') ?? "Gending";
       }
 
+      // Mengambil URL Artikel
       String link = "";
       var links = entry.findElements('link');
       for (var l in links) {
@@ -65,11 +63,18 @@ class BloggerService {
         }
       }
 
+      // KUNCI UTAMA: Mengambil konten HTML penuh untuk diekstrak gambarnya
+      String content = "";
+      var contentElements = entry.findElements('content');
+      if (contentElements.isNotEmpty) {
+        content = contentElements.first.innerText;
+      }
+
       posts.add({
         'title': title,
         'label': label,
         'url': link,
-        'content': "", 
+        'content': content, // Sekarang konten berisi HTML (WebP + Lirik)
       });
     }
     return posts;

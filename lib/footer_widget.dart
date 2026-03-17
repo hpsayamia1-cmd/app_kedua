@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class FooterWidget extends StatelessWidget {
+// Import model Article dari main.dart jika diperlukan, 
+// atau pastikan callback mengirimkan data yang sesuai.
+
+class FooterWidget extends StatefulWidget {
   final int currentTab;
   final bool isDarkMode;
   final Function(int) onTabTap;
@@ -9,6 +12,7 @@ class FooterWidget extends StatelessWidget {
   final Function(String, String) showInternalPage;
   final List<String> gendingLabels;
   final Function(String) onLabelTap;
+  final Function(dynamic, dynamic)? onTayubSubmit; // Callback untuk kirim 2 gending
 
   const FooterWidget({
     super.key,
@@ -19,152 +23,171 @@ class FooterWidget extends StatelessWidget {
     required this.showInternalPage,
     required this.gendingLabels,
     required this.onLabelTap,
+    this.onTayubSubmit,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: currentTab,
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      selectedItemColor: isDarkMode ? Colors.white : Colors.black,
-      unselectedItemColor: Colors.grey,
-      onTap: onTabTap,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
-        BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Jelajah'),
-        BottomNavigationBarItem(icon: Icon(Icons.download_done), label: 'Koleksi'),
-        BottomNavigationBarItem(icon: Icon(Icons.menu), label: 'Menu'), 
-      ],
-    );
-  }
+  State<FooterWidget> createState() => _FooterWidgetState();
 
-  // Tampilan Tab Jelajah - Optimal 2 Kolom 16:9 dengan Teks di Tengah
-  Widget buildJelajah() {
+  // Fungsi eksternal untuk dipanggil di main.dart
+  Widget buildJelajah() => _buildJelajahContent();
+  Widget buildSetelan() => _buildSetelanContent();
+  Widget buildTayubMode() => _TayubModeView(onTayubSubmit: onTayubSubmit, isDarkMode: isDarkMode);
+
+  // Helper untuk Jelajah (Tanpa Thumbnail/Aset)
+  Widget _buildJelajahContent() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 16),
-            child: Text("Kategori Gending", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(), // Scroll ditangani SingleChildScrollView
-            itemCount: gendingLabels.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,          // 2 Kolom
-              crossAxisSpacing: 10,       // Jarak horizontal
-              mainAxisSpacing: 10,        // Jarak vertikal
-              childAspectRatio: 16 / 9,   // Rasio Foto 16:9
-            ),
-            itemBuilder: (context, index) {
-              String label = gendingLabels[index];
-              String assetPath = 'assets/gong6.png'; // Default
-
-              // Logika pemilihan gambar (Sinkron dengan main.dart)
-              String l = label.toLowerCase();
-              if (l.contains('tayub')) assetPath = 'assets/gong1.png';
-              else if (l.contains('slendro')) assetPath = 'assets/gong2.png';
-              else if (l.contains('pelog')) assetPath = 'assets/gong3.png';
-              else if (l.contains('ladrang')) assetPath = 'assets/ladrang.png';
-              else if (l.contains('ketawang')) assetPath = 'assets/ketawang.png';
-              else if (l.contains('ayak')) assetPath = 'assets/ayak.png';
-              else if (l.contains('gending')) assetPath = 'assets/gong5.png';
-
+          const Text("Eksplorasi Notasi", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 5),
+          const Text("Cari berdasarkan kategori atau klasifikasi gending", style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 25),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: gendingLabels.map((label) {
               return InkWell(
                 onTap: () => onLabelTap(label),
-                borderRadius: BorderRadius.circular(8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Stack(
-                    children: [
-                      // FOTO PNG BACKGROUND
-                      Container(
-                        width: double.infinity,
-                        height: double.infinity,
-                        color: isDarkMode ? Colors.white10 : Colors.grey[200],
-                        child: Image.asset(
-                          assetPath,
-                          fit: BoxFit.cover, // Menutup area 16:9
-                          errorBuilder: (c, e, s) => const Icon(Icons.music_video, color: Colors.red),
-                        ),
-                      ),
-                      // Overlay Gelap Tipis agar teks lebih menonjol
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.35),
-                        ),
-                      ),
-                      // TEKS DI TENGAH FOTO
-                      Center(
-                        child: Text(
-                          label,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            shadows: [
-                              Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1))
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? Colors.white10 : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: isDarkMode ? Colors.white24 : Colors.black12),
                   ),
+                  child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
                 ),
               );
-            },
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  // Tampilan Tab Menu / Setelan
-  Widget buildSetelan() {
+  // Helper untuk Setelan
+  Widget _buildSetelanContent() {
     return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.all(10),
       children: [
+        const Padding(
+          padding: EdgeInsets.all(15),
+          child: Text("Pengaturan", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        ),
         SwitchListTile(
-          title: const Text("Tema Gelap"), 
-          secondary: const Icon(Icons.dark_mode),
-          activeColor: Colors.red,
-          value: isDarkMode, 
+          title: const Text("Mode Gelap"),
+          secondary: Icon(isDarkMode ? Icons.dark_mode : Icons.light_mode, color: Colors.red),
+          value: isDarkMode,
           onChanged: onThemeChanged,
         ),
         const Divider(),
         ListTile(
-          leading: const Icon(Icons.info_outline), 
-          title: const Text("Tentang Sinsangnot"), 
-          onTap: () => showInternalPage("Tentang", "Sinsangnot adalah perpustakaan digital notasi gending Jawa berkualitas tinggi."),
+          leading: const Icon(Icons.info_outline),
+          title: const Text("Tentang Sinsangnot"),
+          onTap: () => showInternalPage("Tentang", "Digitalisasi notasi gending Jawa untuk memudahkan para seniman dan akademisi."),
         ),
         ListTile(
-          leading: const Icon(Icons.verified_user_outlined), 
-          title: const Text("Privacy Policy"), 
-          onTap: () => showInternalPage("Privacy", "Kami menjamin data koleksi offline Anda tersimpan aman secara lokal."),
-        ),
-        ListTile(
-          leading: const Icon(Icons.gavel_outlined), 
-          title: const Text("Disclaimer"), 
-          onTap: () => showInternalPage("Disclaimer", "Seluruh notasi adalah hasil digitalisasi kreatif untuk tujuan pelestarian budaya."),
-        ),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.favorite, color: Colors.red), 
-          title: const Text("Donasi Kreator"), 
-          subtitle: const Text("Dukung pelestarian notasi Jawa"),
+          leading: const Icon(Icons.favorite, color: Colors.red),
+          title: const Text("Dukungan Kreator"),
+          subtitle: const Text("Donasi untuk pengembangan aplikasi"),
           onTap: () async {
             final Uri url = Uri.parse("https://link.dana.id/qr/MASUKKAN_ID_DANA_KAMU");
-            if (await canLaunchUrl(url)) {
-              await launchUrl(url, mode: LaunchMode.externalApplication);
-            }
-          }, 
+            if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+          },
         ),
       ],
+    );
+  }
+}
+
+class _FooterWidgetState extends State<FooterWidget> {
+  @override
+  Widget build(BuildContext context) {
+    return BottomNavigationBar(
+      currentIndex: widget.currentTab,
+      type: BottomNavigationBarType.fixed,
+      backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      selectedItemColor: Colors.red,
+      unselectedItemColor: Colors.grey,
+      onTap: widget.onTabTap,
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
+        BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Jelajah'),
+        BottomNavigationBarItem(icon: Icon(Icons.library_music, size: 30), label: 'Tayub'),
+        BottomNavigationBarItem(icon: Icon(Icons.download_done), label: 'Koleksi'),
+        BottomNavigationBarItem(icon: Icon(Icons.menu), label: 'Menu'),
+      ],
+    );
+  }
+}
+
+// Widget Khusus Mode Tayub (Dual Search)
+class _TayubModeView extends StatefulWidget {
+  final Function(dynamic, dynamic)? onTayubSubmit;
+  final bool isDarkMode;
+  const _TayubModeView({this.onTayubSubmit, required this.isDarkMode});
+
+  @override
+  State<_TayubModeView> createState() => _TayubModeViewState();
+}
+
+class _TayubModeViewState extends State<_TayubModeView> {
+  final TextEditingController _c1 = TextEditingController();
+  final TextEditingController _c2 = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(25),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons. theater_comedy, size: 60, color: Colors.red),
+          const SizedBox(height: 10),
+          const Text("Mode Tayub", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const Text("Buka 2 notasi sekaligus secara vertikal", style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 30),
+          _buildSearchBox(_c1, "Cari Gending 1..."),
+          const SizedBox(height: 15),
+          _buildSearchBox(_c2, "Cari Gending 2..."),
+          const SizedBox(height: 30),
+          SizedBox(
+            width: double.infinity,
+            height: 55,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              ),
+              onPressed: () {
+                // Di sini nanti logika mengambil data Artikel berdasarkan judul di controller
+                // Untuk sementara, kita kirimkan teksnya saja atau panggil fungsi pencarian
+                if (_c1.text.isNotEmpty && _c2.text.isNotEmpty) {
+                   // Callback ke main.dart untuk memproses dual view
+                   // onTayubSubmit akan diisi logika pencarian di main.dart
+                }
+              },
+              child: const Text("BUKA 2 NOTASI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBox(TextEditingController controller, String hint) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        hintText: hint,
+        prefixIcon: const Icon(Icons.search),
+        filled: true,
+        fillColor: widget.isDarkMode ? Colors.white10 : Colors.grey[100],
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+      ),
     );
   }
 }
