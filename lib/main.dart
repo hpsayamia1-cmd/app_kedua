@@ -26,7 +26,6 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
     super.initState();
     _loadThemeSettings();
   }
-  }
 
   Future<void> _loadThemeSettings() async {
     final prefs = await SharedPreferences.getInstance();
