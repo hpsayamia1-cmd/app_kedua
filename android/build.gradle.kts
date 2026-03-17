@@ -3,11 +3,9 @@ import com.android.build.gradle.BaseExtension
 allprojects {
     repositories {
         google()
-        mavenCentral() // Pastikan tulisannya begini, pakai 'v'
+        mavenCentral()
     }
 }
-
-// ... sisanya sudah benar ...
 
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
