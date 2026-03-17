@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xml/xml.dart' as xml;
-import 'package:flutter_windowmanager/flutter_windowmanager.dart'; // Tambahkan ini di pubspec.yaml
-
 import 'article_view.dart';
 import 'database_helper.dart';
 import 'blogger_service.dart';
@@ -27,12 +25,7 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
   void initState() {
     super.initState();
     _loadThemeSettings();
-    _secureScreen(); // Aktifkan Anti-Screenshot
   }
-
-  // Fitur Keamanan Anti-Maling
-  Future<void> _secureScreen() async {
-    await FlutterWindowManager.addFlags(FlutterWindowManager.FLAG_SECURE);
   }
 
   Future<void> _loadThemeSettings() async {
