@@ -89,7 +89,7 @@ class _RootNavigationState extends State<RootNavigation> {
   int _currentTab = 0;
   int? _previousTab;
   Article? selectedArticle;
-  List<Article>? dualArticles; // Untuk Mode Tayub (2 Artikel)
+  List<Article>? dualArticles;
   
   bool isSplashing = true;
   double _splashOpacity = 0.0;
@@ -101,6 +101,7 @@ class _RootNavigationState extends State<RootNavigation> {
   int _currentStartIndex = 1;
   final ScrollController _scrollController = ScrollController();
   Timer? _debounce;
+  Timer? _networkTimer; // Tambahkan variabel untuk Timer jaringan
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final BloggerService _bloggerService = BloggerService();
@@ -111,7 +112,52 @@ class _RootNavigationState extends State<RootNavigation> {
     super.initState();
     _initApp();
     _scrollController.addListener(_scrollListener);
+
+    // --- FITUR AUTO-ONLINE ---
+    // Cek status internet setiap 5 detik
+    _networkTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      // Jika saat ini terdeteksi offline DAN daftar artikel masih kosong DAN sedang di Tab Beranda
+      if (isOffline && feedArticles.isEmpty && _currentTab == 0 && !isSearching) {
+        bool online = await _hasInternet();
+        if (online) {
+          debugPrint("Sinyal Sinsangnot kembali! Mengambil data...");
+          _fetchInitialFeed();
+          _fetchSitemap();
+          
+          // Opsional: Kasih tahu user kalau sudah online
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Anda kembali online! Memperbarui daftar gending..."),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    });
   }
+
+  // Fungsi pengecek internet asli
+  Future<bool> _hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } on SocketException catch (_) {
+      return false;
+    }
+  }
+
+@override
+void dispose() {
+  _networkTimer?.cancel(); // Menghentikan timer otomatis saat keluar
+  _scrollController.dispose();
+  _debounce?.cancel();
+  _searchController.dispose(); // Tambahkan ini juga biar bersih
+  _searchFocusNode.dispose();  // Tambahkan ini juga
+  super.dispose();
+}
 
   void _scrollListener() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
@@ -121,16 +167,23 @@ class _RootNavigationState extends State<RootNavigation> {
     }
   }
 
-  Future<void> _initApp() async {
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) setState(() => _splashOpacity = 1.0);
-    });
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) setState(() => isSplashing = false);
-    await _loadOfflineData();
-    _fetchInitialFeed();
-    _fetchSitemap();
-  }
+Future<void> _initApp() async {
+  // Efek Splash Screen
+  Future.delayed(const Duration(milliseconds: 500), () {
+    if (mounted) setState(() => _splashOpacity = 1.0);
+  });
+  
+  await Future.delayed(const Duration(seconds: 3));
+  if (mounted) setState(() => isSplashing = false);
+
+  // Muat data lokal dulu (cepat)
+  await _loadOfflineData();
+  await _loadSavedSitemap(); // Muat sitemap cadangan dari memori HP
+
+  // Baru coba ambil data online
+  _fetchInitialFeed();
+  _fetchSitemap();
+}
 
  // LOGIKA PINTAR: Mencari URL gambar dengan metode yang lebih ringan (Efisiensi RAM)
   String _extractImageUrl(String content) {
