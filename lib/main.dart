@@ -306,6 +306,7 @@ void _openArticle(Article a) {
         localImagePath: a.localImagePath,
       );
       dualArticles = null;
+      _currentTab = 0;
     });
   }
 
@@ -607,24 +608,26 @@ Widget _buildTabContent() {
   
 Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
   if (isInitialLoading || isSearching) {
-  return const Center(
-    child: CircularProgressIndicator(color: Colors.red),
-  );
-}
+    return const Center(
+      child: CircularProgressIndicator(color: Colors.red),
+    );
+  }
   if (list.isEmpty) return Center(child: Text(isOfflineTab ? "Belum ada koleksi." : "Hasil tidak ditemukan."));
 
   return Column(
     children: [
-Padding(
-        padding: const EdgeInsets.only(top: 25, bottom: 10),
+      // HEADER JUDUL UTAMA (TETAP DI TENGAH)
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 15),
         child: Column(
           children: [
             Text(
               isOfflineTab 
                   ? "KOLEKSI SAYA" 
                   : (_searchController.text.isNotEmpty ? "HASIL PENCARIAN" : "DAFTAR ISI"),
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 4,
                 color: widget.isDarkMode ? Colors.red[300] : Colors.red[900],
@@ -634,51 +637,64 @@ Padding(
           ],
         ),
       ),
+      
+      // DAFTAR GENDING 1 KOLOM (FLEKSIBEL)
       Expanded(
-        child: GridView.builder(
+        child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           controller: isOfflineTab ? null : _scrollController,
-          padding: const EdgeInsets.all(8),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 2.5, // Sedikit lebih tinggi agar muat teks & ikon
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           itemCount: list.length + (isMoreLoading ? 1 : 0),
           itemBuilder: (context, index) {
             if (index == list.length) return const Center(child: CircularProgressIndicator(color: Colors.red));
             final a = list[index];
-            bool isKiri = index % 2 == 0;
 
             return GestureDetector(
               onTap: () => _openArticle(a),
-              onLongPress: isOfflineTab ? () => _confirmDelete(a) : null, // Tekan lama untuk hapus
+              onLongPress: isOfflineTab ? () => _confirmDelete(a) : null,
               child: Container(
+                // KOTAK TANPA RADIUS DENGAN GARIS BAWAH
                 decoration: BoxDecoration(
                   border: Border(
-                    right: isKiri ? BorderSide(color: widget.isDarkMode ? Colors.white10 : Colors.grey[300]!) : BorderSide.none,
-                    bottom: BorderSide(color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]!),
+                    bottom: BorderSide(color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]!, width: 1.5),
                   ),
                 ),
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start, // Agar nomor tetap di atas jika teks panjang
                   children: [
-                    Text("${index + 1}.", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11)),
-                    const SizedBox(width: 6),
+                    // NOMOR URUT
+                    Text("${index + 1}.", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(width: 12),
+                    
+                    // JUDUL GENDING (WRAP OTOMATIS)
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(a.title.toUpperCase(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                          Text(a.label, style: TextStyle(fontSize: 9, color: Colors.grey[500])),
+                          Text(
+                            a.title.toUpperCase(), 
+                            style: TextStyle(
+                              fontSize: 14, // Ukuran huruf judul lebih jelas
+                              fontWeight: FontWeight.bold,
+                              height: 1.3, // Jarak antar baris biar enak dibaca
+                              color: widget.isDarkMode ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(a.label, style: TextStyle(fontSize: 10, color: Colors.grey[500])),
                         ],
                       ),
                     ),
-                    // Jika di menu koleksi, munculkan ikon hapus kecil
+
+                    // IKON HAPUS (LEBIH BESAR UNTUK KOLEKSI)
                     if (isOfflineTab)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 16, color: Colors.grey),
-                        onPressed: () => _confirmDelete(a),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 10),
+                        child: IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 24, color: Colors.redAccent), // Ukuran 24 & warna lebih tegas
+                          onPressed: () => _confirmDelete(a),
+                        ),
                       ),
                   ],
                 ),
@@ -690,7 +706,7 @@ Padding(
     ],
   );
 }
-  
+
 void _confirmDelete(Article a) { 
     showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Hapus Koleksi?"), actions: [
       TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")), 
