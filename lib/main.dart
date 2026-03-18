@@ -608,7 +608,6 @@ Widget _buildThumbnail(Article a) {
         height: 180,
         width: double.infinity,
         fit: BoxFit.cover,
-        cacheHeight: 350,
       );
     } else if (a.imageUrl.isNotEmpty) {
       imageWidget = Image.network(
@@ -616,8 +615,6 @@ Widget _buildThumbnail(Article a) {
         height: 180, 
         width: double.infinity, 
         fit: BoxFit.cover,
-        // Ini kuncinya agar tidak blur tapi tetap ringan di RAM
-        memCacheHeight: 400, 
         errorBuilder: (c, e, s) => _buildPlaceholder(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
