@@ -182,6 +182,18 @@ void _filterSitemap(String query, int field) {
     });
   }
 
+  void _resetTayub() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _c1.clear();
+      _c2.clear();
+      _selected1 = null;
+      _selected2 = null;
+      _suggestions = [];
+      _activeField = 0;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     bool isValid = _selected1 != null && _selected2 != null;
@@ -203,7 +215,20 @@ void _filterSitemap(String query, int field) {
               const Icon(Icons.link, color: Colors.red),
               const SizedBox(height: 15),
               _buildSearchBox(_c2, "Cari Gending 2...", 2, _selected2 != null),
-              
+              const SizedBox(height: 15),
+              // --- TOMBOL RESET DI SINI ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  TextButton.icon(
+                    onPressed: _resetTayub,
+                    icon: const Icon(Icons.refresh, color: Colors.grey, size: 18),
+                    label: const Text("Reset Pilihan", 
+                      style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  ),
+                ],
+              ),
+
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,

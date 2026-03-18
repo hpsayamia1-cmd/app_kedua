@@ -131,13 +131,20 @@ class _RootNavigationState extends State<RootNavigation> {
     _fetchSitemap();
   }
 
-  // Logic untuk mencari URL gambar WebP di dalam konten HTML
+ // LOGIKA PINTAR: Mencari URL gambar dengan metode yang lebih ringan (Efisiensi RAM)
   String _extractImageUrl(String content) {
-    RegExp regExp = RegExp(r'src="([^"]+)"');
-    Iterable<RegExpMatch> matches = regExp.allMatches(content);
-    if (matches.isNotEmpty) {
-      return matches.first.group(1) ?? "";
-    }
+    if (content.isEmpty) return "";
+    final RegExp regExp = RegExp(
+      "src=['\"]([^'\"]+\\.(?:jpg|jpeg|png|webp|gif|bmp))['\"]", 
+      caseSensitive: false
+    );
+    
+    final match = regExp.firstMatch(content);
+    
+    if (match != null) {
+      String url = match.group(1) ?? "";
+      return url.contains('?') ? url.split('?').first : url;
+    } 
     return "";
   }
 
@@ -184,16 +191,31 @@ Future<void> _fetchSitemap() async {
     }
   }
 
-  Future<void> _fetchInitialFeed() async {
+String _getHighResThumbnail(String url) {
+    if (url.isEmpty) return "";
+    // Mengubah kode ukuran Blogger (s72, s320, s640) menjadi s1600 (Resolusi Tinggi)
+    return url.replaceAll(RegExp(r'\/s[0-9]+(-c)?\/'), '/s1600/');
+  }
+
+Future<void> _fetchInitialFeed() async {
     setState(() { isInitialLoading = true; isOffline = false; _currentStartIndex = 1; });
     try {
       final data = await _bloggerService.fetchFeed(startIndex: 1, maxResults: 8);
       if (data.isNotEmpty) {
         setState(() {
-          feedArticles = data.map((i) => Article(
-            id: i['url'], title: i['title'], content: i['content'], url: i['url'], 
-            label: i['label'], imageUrl: _extractImageUrl(i['content'])
-          )).toList();
+          // OPTIMASI: Proses data secara massal agar loading lebih cepat
+          feedArticles = data.map((i) {
+            String rawImg = _extractImageUrl(i['content']);
+            return Article(
+              id: i['url'], 
+              title: i['title'], 
+              content: i['content'], 
+              url: i['url'], 
+              label: i['label'], 
+              // PAKAI FUNGSI ANTI-BLUR DI SINI
+              imageUrl: _getHighResThumbnail(rawImg) 
+            );
+          }).toList();
           isOffline = false;
         });
       } else {
@@ -211,17 +233,25 @@ Future<void> _fetchSitemap() async {
       final data = await _bloggerService.fetchFeed(startIndex: _currentStartIndex, maxResults: 8);
       if (data.isNotEmpty) {
         setState(() {
-          feedArticles.addAll(data.map((i) => Article(
-            id: i['url'], title: i['title'], content: i['content'], url: i['url'], 
-            label: i['label'], imageUrl: _extractImageUrl(i['content'])
-          )).toList());
+          // OPTIMASI: Gunakan addAll dengan map untuk efisiensi
+          feedArticles.addAll(data.map((i) {
+            String rawImg = _extractImageUrl(i['content']);
+            return Article(
+              id: i['url'], 
+              title: i['title'], 
+              content: i['content'], 
+              url: i['url'], 
+              label: i['label'], 
+              imageUrl: _getHighResThumbnail(rawImg)
+            );
+          }).toList());
         });
       }
     } catch (e) { debugPrint("Load more error"); }
     setState(() => isMoreLoading = false);
   }
 
-  Future<void> _handleSearch(String q) async {
+Future<void> _handleSearch(String q) async {
     if (q.isEmpty) return;
     _searchFocusNode.unfocus(); 
     setState(() { isSearching = true; filteredSuggestions = []; selectedArticle = null; dualArticles = null; });
@@ -229,10 +259,17 @@ Future<void> _fetchSitemap() async {
     try {
       final data = await _bloggerService.searchPosts(q);
       setState(() {
-        searchResults = data.map((i) => Article(
-          id: i['url'], title: i['title'], content: i['content'], url: i['url'], 
-          label: i['label'], imageUrl: _extractImageUrl(i['content'])
-        )).toList();
+        searchResults = data.map((i) {
+          String rawImg = _extractImageUrl(i['content']);
+          return Article(
+            id: i['url'], 
+            title: i['title'], 
+            content: i['content'], 
+            url: i['url'], 
+            label: i['label'], 
+            imageUrl: _getHighResThumbnail(rawImg) // TETAP JERNIH SAAT CARI
+          );
+        }).toList();
         _currentTab = 0;
         isOffline = false;
       });
@@ -417,12 +454,20 @@ final header = HeaderWidget(
       onLogoTap: () { _resetSearch(); setState(() { _currentTab = 0; selectedArticle = null; dualArticles = null; }); },
     );
 
-    return WillPopScope(
-      onWillPop: () async { 
-        if (selectedArticle != null || dualArticles != null) { setState(() { selectedArticle = null; dualArticles = null; }); return false; } 
-        if (_currentTab != 0) { setState(() { _currentTab = 0; _resetSearch(); }); return false; } 
-        return true; 
-      },
+return WillPopScope(
+  onWillPop: () async { 
+    // 1. Jika sedang buka artikel, tutup artikelnya (Balik ke Tab yang aktif sebelumnya)
+    if (selectedArticle != null || dualArticles != null) { 
+      setState(() { selectedArticle = null; dualArticles = null; }); 
+      return false; 
+    } 
+    // 2. Jika sedang di tab selain Beranda (0), balikkan ke Beranda dulu
+    if (_currentTab != 0) { 
+      setState(() { _currentTab = 0; _resetSearch(); }); 
+      return false; 
+    } 
+    return true; // Keluar aplikasi
+  },
       child: Scaffold(
         appBar: header,
         body: Stack(children: [
@@ -445,23 +490,17 @@ final header = HeaderWidget(
 bottomNavigationBar: FooterWidget(
   currentTab: _currentTab,
   isDarkMode: widget.isDarkMode,
-  
-  // LOGIKA PINTAR: 
-  // Jika sitemapSuggestions kosong (karena offline), 
-  // tampilkan daftar dari koleksi offline yang sudah di-download saja.
   sitemap: sitemapSuggestions.isNotEmpty 
       ? sitemapSuggestions 
       : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
 
-  onTabTap: (i) { 
-    _resetSearch(); 
-    setState(() { 
-      _currentTab = i; 
-      selectedArticle = null; 
-      dualArticles = null; 
-    }); 
-    if (i == 3) _loadOfflineData(); 
-  },
+onTabTap: (i) { 
+  _resetSearch(); 
+  setState(() { 
+    _currentTab = i;
+  }); 
+  if (i == 3) _loadOfflineData(); 
+},
   onThemeChanged: widget.updateTheme,
   showInternalPage: _showInternalPage,
   gendingLabels: gendingLabels,
@@ -473,31 +512,41 @@ bottomNavigationBar: FooterWidget(
   }
 
 Widget _buildTabContent() {
+    // 1. Jika memang sedang proses tarik data dari internet, tampilkan loading (skeleton)
     if (isInitialLoading || isSearching) return _buildSkeletonList();
+    
     if (_currentTab == 0 && isOffline && feedArticles.isEmpty) return _buildOfflineError();
     
-    // Simpan FooterWidget ke variabel agar tidak ngetik ulang terus
     final footerContent = FooterWidget(
       currentTab: _currentTab,
       isDarkMode: widget.isDarkMode,
-      onTabTap: (i) {}, // Kosongkan karena ini cuma buat ambil kontennya saja
+      onTabTap: (i) {}, 
       onThemeChanged: widget.updateTheme,
       showInternalPage: _showInternalPage,
       gendingLabels: gendingLabels,
       onLabelTap: _handleSearch,
-      sitemap: sitemapSuggestions, // SANGAT PENTING: Agar saran di Mode Tayub muncul
+      sitemap: sitemapSuggestions,
       onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2),
     );
 
     switch (_currentTab) {
-      case 0: return _buildArticleList(_searchController.text.isNotEmpty ? searchResults : feedArticles);
+      case 0: 
+        // LOGIKA PERBAIKAN:
+        // Cek searchResults.isNotEmpty DULU. Jangan cuma cek teks controller-nya.
+        // Jika hasil cari ada, tampilkan. Jika tidak ada hasil TAPI sedang ngetik, 
+        // tetap tampilkan feedArticles (Beranda) sampai user tekan Enter/Sitemap.
+        List<Article> displayList = searchResults.isNotEmpty ? searchResults : feedArticles;
+        return _buildArticleList(displayList);
+        
       case 1: return footerContent.buildJelajah();
-      case 2: return footerContent.buildTayubMode(); // Sekarang Mode Tayub punya akses ke sitemap
-      case 3: return _buildArticleList(_searchController.text.isNotEmpty ? searchResults : offlineArticles, isOfflineTab: true);
+      case 2: return footerContent.buildTayubMode();
+      case 3: 
+        List<Article> offlineList = searchResults.isNotEmpty ? searchResults : offlineArticles;
+        return _buildArticleList(offlineList, isOfflineTab: true);
       case 4: return footerContent.buildSetelan();
       default: return _buildArticleList(feedArticles);
     }
-  }
+}
 
   Widget _buildSkeletonList() => ListView.builder(itemCount: 5, itemBuilder: (c, i) => Padding(padding: const EdgeInsets.all(20), child: Container(height: 150, decoration: BoxDecoration(color: widget.isDarkMode ? Colors.white10 : Colors.grey[200], borderRadius: BorderRadius.circular(15)))));
   
@@ -511,6 +560,9 @@ Widget _buildTabContent() {
   }
   
   Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
+    if (isInitialLoading || isSearching) {
+      return _buildSkeletonList(); 
+    }
     if (list.isEmpty) return Center(child: Text(isOfflineTab ? "Belum ada koleksi." : "Hasil tidak ditemukan."));
     return ListView.builder(
       controller: isOfflineTab ? null : _scrollController,
@@ -564,7 +616,8 @@ Widget _buildThumbnail(Article a) {
         height: 180, 
         width: double.infinity, 
         fit: BoxFit.cover,
-        cacheHeight: 350, 
+        // Ini kuncinya agar tidak blur tapi tetap ringan di RAM
+        memCacheHeight: 400, 
         errorBuilder: (c, e, s) => _buildPlaceholder(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
@@ -580,7 +633,7 @@ Widget _buildThumbnail(Article a) {
       child: imageWidget,
     );
   }
-
+  
   Widget _buildPlaceholder() {
     return Container(height: 180, width: double.infinity, color: Colors.grey[800], child: const Icon(Icons.music_note, size: 50, color: Colors.white24));
   }

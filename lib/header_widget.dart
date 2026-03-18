@@ -105,7 +105,7 @@ Widget buildFloatingSuggestions(BuildContext context) {
   if (filteredSuggestions.isEmpty) return const SizedBox.shrink();
 
   return Positioned(
-    top: kToolbarHeight + 10, // Mengambang tepat di bawah Search Bar
+    top: kToolbarHeight + 0, // Mengambang tepat di bawah Search Bar
     left: 20,
     right: 20,
     child: Material(
@@ -145,6 +145,7 @@ Widget buildFloatingSuggestions(BuildContext context) {
                     s['title'] ?? "",
                     style: TextStyle(
                       fontSize: 14,
+                      fontWeight: FontWeight.bold,
                       color: isDarkMode ? Colors.white : Colors.black87,
                     ),
                   ),
