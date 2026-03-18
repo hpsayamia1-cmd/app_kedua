@@ -192,9 +192,17 @@ Future<void> _fetchSitemap() async {
     }
   }
 
-String _getHighResThumbnail(String url) {
+// 1. UNTUK DAFTAR BERANDA (Sangat Ringan & Cepat)
+  String _getLowResThumbnail(String url) {
     if (url.isEmpty) return "";
-    // Mengubah kode ukuran Blogger (s72, s320, s640) menjadi s1600 (Resolusi Tinggi)
+    // Mengubah resolusi apa pun menjadi s320 (lebar 320px saja)
+    return url.replaceAll(RegExp(r'\/s[0-9]+(-c)?\/'), '/s320/');
+  }
+
+  // 2. UNTUK SAAT ARTIKEL DIBUKA (Jernih & Tajam)
+  String _getHighResThumbnail(String url) {
+    if (url.isEmpty) return "";
+    // Mengubah resolusi menjadi s1600 (resolusi asli/tinggi)
     return url.replaceAll(RegExp(r'\/s[0-9]+(-c)?\/'), '/s1600/');
   }
 
@@ -214,7 +222,7 @@ Future<void> _fetchInitialFeed() async {
               url: i['url'], 
               label: i['label'], 
               // PAKAI FUNGSI ANTI-BLUR DI SINI
-              imageUrl: _getHighResThumbnail(rawImg) 
+              imageUrl: _getLowResThumbnail(rawImg) 
             );
           }).toList();
           isOffline = false;
@@ -243,7 +251,7 @@ Future<void> _fetchInitialFeed() async {
               content: i['content'], 
               url: i['url'], 
               label: i['label'], 
-              imageUrl: _getHighResThumbnail(rawImg)
+              imageUrl: _getLowResThumbnail(rawImg)
             );
           }).toList());
         });
@@ -268,7 +276,7 @@ Future<void> _handleSearch(String q) async {
             content: i['content'], 
             url: i['url'], 
             label: i['label'], 
-            imageUrl: _getHighResThumbnail(rawImg) // TETAP JERNIH SAAT CARI
+            imageUrl: _getLowResThumbnail(rawImg)
           );
         }).toList();
         _currentTab = 0;
@@ -285,9 +293,18 @@ void _searchOfflineLocally(String q) {
     setState(() { searchResults = local; });
   }
 
-  void _openArticle(Article a) {
+void _openArticle(Article a) {
     setState(() {
-      selectedArticle = a;
+      selectedArticle = Article(
+        id: a.id,
+        title: a.title,
+        content: a.content,
+        url: a.url,
+        label: a.label,
+        // PAKAI HIGH RES DI SINI:
+        imageUrl: _getHighResThumbnail(a.imageUrl), 
+        localImagePath: a.localImagePath,
+      );
       dualArticles = null;
     });
   }
@@ -482,25 +499,34 @@ onWillPop: () async {
         appBar: header,
 body: Stack(
         children: [
-          if (selectedArticle != null)
-            ArticleReader(
-              article: selectedArticle!, 
-              isDarkMode: widget.isDarkMode, 
-              onClose: () => setState(() => selectedArticle = null),
-            )
-          else if (dualArticles != null)
-            ArticleReader(
-              articles: dualArticles!, 
-              isDarkMode: widget.isDarkMode, 
-              isDualMode: true,
-              onClose: () => setState(() => dualArticles = null),
-            )
-          else
+          if (selectedArticle == null && dualArticles == null)
             RefreshIndicator(
               color: Colors.red, 
               onRefresh: _fetchInitialFeed, 
               child: _buildTabContent(),
             ),
+
+          if (selectedArticle != null)
+            ArticleReader(
+              article: selectedArticle!, 
+              isDarkMode: widget.isDarkMode, 
+              onClose: () => setState(() => selectedArticle = null),
+            ),
+
+          if (dualArticles != null)
+            ArticleReader(
+              articles: dualArticles!, 
+              isDarkMode: widget.isDarkMode, 
+              isDualMode: true,
+              onClose: () => setState(() => dualArticles = null),
+            ),
+
+          if (_currentTab != 0)
+            Container(
+              color: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+              child: _buildTabContent(),
+            ),
+            
           header.buildFloatingSuggestions(context),
         ],
       ),
