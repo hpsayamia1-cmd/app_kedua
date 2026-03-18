@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'main.dart'; // Untuk akses model Article
@@ -110,30 +114,36 @@ class ArticleReader extends StatelessWidget {
   }
 
   // Widget Penampil Gambar dengan Filter Mode Gelap
-  Widget _buildNotasiImage(String url) {
+Widget _buildNotasiImage(String url) {
     if (url.isEmpty) return const SizedBox();
 
-    return ColorFiltered(
-      // Logika Invert Warna: Jika Dark Mode, ubah Hitam jadi Putih
-      colorFilter: isDarkMode 
-          ? const ColorFilter.matrix([
-              -1,  0,  0, 0, 255, // Red
-               0, -1,  0, 0, 255, // Green
-               0,  0, -1, 0, 255, // Blue
-               0,  0,  0, 1,   0, // Alpha
-            ])
-          : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
-      child: CachedNetworkImage(
-        imageUrl: url,
-        width: double.infinity, // Paksa Full Layar
-        fit: BoxFit.contain,
-        placeholder: (context, url) => const Center(
-          child: Padding(
-            padding: EdgeInsets.all(40.0),
-            child: CircularProgressIndicator(color: Colors.red),
+    // Matriks Invert (Pembalik Warna)
+    const invertMatrix = ColorFilter.matrix([
+      -1,  0,  0, 0, 255,
+       0, -1,  0, 0, 255,
+       0,  0, -1, 0, 255,
+       0,  0,  0, 1,   0,
+    ]);
+
+    return RepaintBoundary( // Memisahkan proses render gambar agar scroll lirik jadi enteng
+      child: ColorFiltered(
+        // AKTIFKAN filter HANYA di Mode Gelap
+        colorFilter: isDarkMode ? invertMatrix : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+        child: CachedNetworkImage(
+          imageUrl: url,
+          width: double.infinity,
+          fit: BoxFit.contain,
+          // OPTIMASI: Batasi lebar gambar di RAM (misal 1000px saja)
+          // Ini kunci agar scroll di Mode Terang tidak ngadat
+          memCacheWidth: 1000, 
+          placeholder: (context, url) => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40.0),
+              child: CircularProgressIndicator(color: Colors.red),
+            ),
           ),
+          errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 50),
         ),
-        errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 50),
       ),
     );
   }
@@ -160,17 +170,55 @@ class ArticleReader extends StatelessWidget {
     );
   }
 
-  Future<void> _saveToOffline(BuildContext context, Article art) async {
+ Future<void> _saveToOffline(BuildContext context, Article art) async {
+  try {
+    // 1. Ambil data konten (Gambar & Lirik)
+    var data = _parseContent(art.content);
+    String imageUrl = data['image'] ?? "";
+    String localPath = "";
+
+    // 2. Proses Download Gambar jika ada linknya
+    if (imageUrl.isNotEmpty) {
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        // Cari folder privat aplikasi
+        final directory = await getApplicationDocumentsDirectory();
+        // Beri nama file unik berdasarkan ID artikel (ambil bagian terakhir URL)
+        String fileName = "img_${art.id.split('/').last}.webp"; 
+        String filePath = p.join(directory.path, fileName);
+        
+        // Simpan file ke memori HP
+        File file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        localPath = filePath; // Simpan alamat lokalnya
+      }
+    }
+
+    // 3. Simpan ke Database (Termasuk localImagePath)
     final db = await DatabaseHelper.getDatabase();
-    await db.insert('offline_posts', {
-      'id': art.id,
-      'title': art.title,
-      'content': art.content,
-      'url': art.url,
-      'label': art.label
-    });
+    await db.insert(
+      'offline_posts',
+      {
+        'id': art.id,
+        'title': art.title,
+        'content': art.content,
+        'url': art.url,
+        'label': art.label,
+        'imageUrl': imageUrl,
+        'localImagePath': localPath, // Ini kunci agar thumbnail muncul offline
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Berhasil simpan ke Koleksi"), backgroundColor: Colors.red),
+      const SnackBar(
+        content: Text("Berhasil simpan ke Koleksi Offline"),
+        backgroundColor: Colors.green,
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Gagal simpan: $e"), backgroundColor: Colors.red),
     );
   }
 }

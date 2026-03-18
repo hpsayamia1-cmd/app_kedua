@@ -7,6 +7,7 @@ import 'database_helper.dart';
 import 'blogger_service.dart';
 import 'header_widget.dart';
 import 'footer_widget.dart';
+import 'dart:io';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,11 +37,11 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
   }
 
   void _updateTheme(bool isDark) async {
-    final prefs = await SharedPreferences.getInstance();
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
-      prefs.setBool('isDarkMode', isDark);
     });
+      final prefs = await SharedPreferences.getInstance();
+        prefs.setBool('isDarkMode', isDark);
   }
 
   @override
@@ -64,14 +65,15 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
 
 // Model Artikel yang mendukung WebP
 class Article {
-  final String id, title, content, url, label, imageUrl;
+  final String id, title, content, url, label, imageUrl, localImagePath; // Tambah localImagePath
   Article({
     required this.id, 
     required this.title, 
     required this.content, 
     required this.url, 
     required this.label,
-    this.imageUrl = ""
+    this.imageUrl = "",
+    this.localImagePath = "",
   });
 }
 
@@ -139,7 +141,7 @@ class _RootNavigationState extends State<RootNavigation> {
     return "";
   }
 
-  Future<void> _fetchSitemap() async {
+Future<void> _fetchSitemap() async {
     try {
       final res = await _bloggerService.fetchSitemap();
       if (res.statusCode == 200) {
@@ -157,8 +159,29 @@ class _RootNavigationState extends State<RootNavigation> {
           }
         }
         setState(() => sitemapSuggestions = temp);
+        
+        // SIMPAN KE HP: Agar saat offline nanti data ini bisa dibandingkan
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setString('saved_sitemap', temp.map((e) => "${e['title']}|${e['url']}").join("||"));
       }
-    } catch (e) { debugPrint("Sitemap error: $e"); }
+    } catch (e) { 
+      debugPrint("Sitemap error: $e"); 
+      _loadSavedSitemap(); // Jika gagal ambil online, muat yang tersimpan
+    }
+  }
+
+  // Fungsi tambahan untuk muat sitemap yang tersimpan di HP
+  Future<void> _loadSavedSitemap() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? saved = prefs.getString('saved_sitemap');
+    if (saved != null) {
+      setState(() {
+        sitemapSuggestions = saved.split("||").map((e) {
+          var part = e.split("|");
+          return {'title': part[0], 'url': part[1]};
+        }).toList();
+      });
+    }
   }
 
   Future<void> _fetchInitialFeed() async {
@@ -219,7 +242,7 @@ class _RootNavigationState extends State<RootNavigation> {
     setState(() => isSearching = false);
   }
 
-  void _searchOfflineLocally(String q) {
+void _searchOfflineLocally(String q) {
     List<Article> local = offlineArticles.where((a) => a.title.toLowerCase().contains(q.toLowerCase())).toList();
     setState(() { searchResults = local; });
   }
@@ -239,13 +262,69 @@ class _RootNavigationState extends State<RootNavigation> {
     });
   }
 
-  Future<void> _loadOfflineData() async {
+  // INI FUNGSI BARU UNTUK TOMBOL "BUKA 2 NOTASI"
+Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) async {
+    setState(() { isSearching = true; });
+    
+    try {
+      // 1. FUNGSI CEK LOKAL: Kita cari di koleksi offline dulu
+      Article? a1 = _findInOffline(s1['title']!);
+      Article? a2 = _findInOffline(s2['title']!);
+
+      // 2. Jika salah satu atau keduanya TIDAK ADA di offline, baru cari ke internet
+      if (a1 == null || a2 == null) {
+        final results = await Future.wait([
+          a1 == null ? _bloggerService.searchPosts(s1['title']!) : Future.value([]),
+          a2 == null ? _bloggerService.searchPosts(s2['title']!) : Future.value([]),
+        ]);
+
+        if (a1 == null && results[0].isNotEmpty) {
+          var i = results[0][0];
+          a1 = Article(id: i['url'], title: i['title'], content: i['content'], url: i['url'], label: i['label'], imageUrl: _extractImageUrl(i['content']));
+        }
+        if (a2 == null && results[1].isNotEmpty) {
+          var i = results[1][0];
+          a2 = Article(id: i['url'], title: i['title'], content: i['content'], url: i['url'], label: i['label'], imageUrl: _extractImageUrl(i['content']));
+        }
+      }
+
+      // 3. Tampilkan hasilnya jika keduanya berhasil ditemukan (baik lokal maupun online)
+      if (a1 != null && a2 != null) {
+        setState(() {
+          dualArticles = [a1!, a2!];
+          selectedArticle = null;
+          _currentTab = 0; // Pindah ke home untuk melihat notasi
+        });
+      }
+    } catch (e) {
+      debugPrint("Gagal memuat dual gending: $e");
+    }
+    setState(() { isSearching = false; });
+  }
+
+  // Fungsi pembantu untuk mencari artikel di daftar offlineArticles
+  Article? _findInOffline(String title) {
+    try {
+      return offlineArticles.firstWhere(
+        (a) => a.title.toLowerCase() == title.toLowerCase()
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+Future<void> _loadOfflineData() async {
     final db = await DatabaseHelper.getDatabase();
     final maps = await db.query('offline_posts');
     setState(() { 
       offlineArticles = maps.map((e) => Article(
-        id: e['id'].toString(), title: e['title'].toString(), content: e['content'].toString(), 
-        url: e['url'].toString(), label: e['label']?.toString() ?? "Gending"
+        id: e['id'].toString(), 
+        title: e['title'].toString(), 
+        content: e['content'].toString(), 
+        url: e['url'].toString(), 
+        label: e['label']?.toString() ?? "Gending",
+        imageUrl: e['imageUrl']?.toString() ?? "", // Pastikan imageUrl terbaca
+        localImagePath: e['localImagePath']?.toString() ?? "", // Tambahkan ini
       )).toList(); 
     });
   }
@@ -287,14 +366,14 @@ class _RootNavigationState extends State<RootNavigation> {
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Image.asset('assets/logo.png', height: 120, errorBuilder: (c,e,s) => const Icon(Icons.play_circle_fill, size: 100, color: Colors.red)), 
               const SizedBox(height: 20), 
-              const Text("PLAYER TAYUB", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: 3))
+              const Text("SinsangNot", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: 3))
             ]),
           )
         )
       );
     }
 
-    final header = HeaderWidget(
+final header = HeaderWidget(
       isDarkMode: widget.isDarkMode,
       isLoading: isInitialLoading || isSearching,
       searchController: _searchController,
@@ -304,13 +383,35 @@ class _RootNavigationState extends State<RootNavigation> {
       onSearchChanged: (val) {
         if (_debounce?.isActive ?? false) _debounce!.cancel();
         _debounce = Timer(const Duration(milliseconds: 500), () {
-          if (val.isEmpty) { setState(() => filteredSuggestions = []); } 
-          else { setState(() => filteredSuggestions = sitemapSuggestions.where((s) => s['title']!.toLowerCase().contains(val.toLowerCase())).take(6).toList()); }
+          if (val.isEmpty) { 
+            setState(() => filteredSuggestions = []); 
+          } else {
+            // LOGIKA PINTAR UNTUK HEADER:
+            // Jika sitemapSuggestions kosong (Offline), cari saran dari offlineArticles
+            var source = sitemapSuggestions.isNotEmpty 
+                ? sitemapSuggestions 
+                : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList();
+
+            setState(() { 
+              filteredSuggestions = source
+                  .where((s) => s['title']!.toLowerCase().contains(val.toLowerCase()))
+                  .take(6) // Ambil 6 saran saja agar tidak penuh layarnya
+                  .toList(); 
+            });
+          }
         });
       },
       onSitemapTap: (suggestion) {
         setState(() => filteredSuggestions = []);
-        _openArticle(Article(id: suggestion['url']!, title: suggestion['title']!, content: "", url: suggestion['url']!, label: "Gending"));
+        // Jika offline, panggil _openArticle langsung dari data lokal
+        Article? localMatch = _findInOffline(suggestion['title']!);
+        if (localMatch != null) {
+          _openArticle(localMatch);
+        } else {
+          // Jika online, buat artikel sementara lalu ambil datanya
+          _openArticle(Article(id: suggestion['url']!, title: suggestion['title']!, content: "", url: suggestion['url']!, label: "Gending"));
+          _handleSearch(suggestion['title']!); // Picu pencarian konten lengkap
+        }
       },
       onResetSearch: _resetSearch,
       onLogoTap: () { _resetSearch(); setState(() { _currentTab = 0; selectedArticle = null; dualArticles = null; }); },
@@ -341,34 +442,59 @@ class _RootNavigationState extends State<RootNavigation> {
                 : RefreshIndicator(color: Colors.red, onRefresh: _fetchInitialFeed, child: _buildTabContent()),
           header.buildFloatingSuggestions(context),
         ]),
-        bottomNavigationBar: FooterWidget(
-          currentTab: _currentTab,
-          isDarkMode: widget.isDarkMode,
-          onTabTap: (i) { 
-            _resetSearch(); 
-            setState(() { _currentTab = i; selectedArticle = null; dualArticles = null; }); 
-            if (i == 3) _loadOfflineData(); 
-          },
-          onThemeChanged: widget.updateTheme,
-          showInternalPage: _showInternalPage,
-          gendingLabels: gendingLabels,
-          onLabelTap: _handleSearch,
-          onTayubSubmit: (a1, a2) => _openDualArticle(a1, a2), // Callback untuk Mode Tayub
-        ),
+bottomNavigationBar: FooterWidget(
+  currentTab: _currentTab,
+  isDarkMode: widget.isDarkMode,
+  
+  // LOGIKA PINTAR: 
+  // Jika sitemapSuggestions kosong (karena offline), 
+  // tampilkan daftar dari koleksi offline yang sudah di-download saja.
+  sitemap: sitemapSuggestions.isNotEmpty 
+      ? sitemapSuggestions 
+      : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
+
+  onTabTap: (i) { 
+    _resetSearch(); 
+    setState(() { 
+      _currentTab = i; 
+      selectedArticle = null; 
+      dualArticles = null; 
+    }); 
+    if (i == 3) _loadOfflineData(); 
+  },
+  onThemeChanged: widget.updateTheme,
+  showInternalPage: _showInternalPage,
+  gendingLabels: gendingLabels,
+  onLabelTap: _handleSearch,
+  onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2), 
+),
       ),
     );
   }
 
-  Widget _buildTabContent() {
+Widget _buildTabContent() {
     if (isInitialLoading || isSearching) return _buildSkeletonList();
     if (_currentTab == 0 && isOffline && feedArticles.isEmpty) return _buildOfflineError();
     
+    // Simpan FooterWidget ke variabel agar tidak ngetik ulang terus
+    final footerContent = FooterWidget(
+      currentTab: _currentTab,
+      isDarkMode: widget.isDarkMode,
+      onTabTap: (i) {}, // Kosongkan karena ini cuma buat ambil kontennya saja
+      onThemeChanged: widget.updateTheme,
+      showInternalPage: _showInternalPage,
+      gendingLabels: gendingLabels,
+      onLabelTap: _handleSearch,
+      sitemap: sitemapSuggestions, // SANGAT PENTING: Agar saran di Mode Tayub muncul
+      onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2),
+    );
+
     switch (_currentTab) {
       case 0: return _buildArticleList(_searchController.text.isNotEmpty ? searchResults : feedArticles);
-      case 1: return FooterWidget(currentTab: 1, isDarkMode: widget.isDarkMode, onTabTap: (i){}, onThemeChanged: widget.updateTheme, showInternalPage: _showInternalPage, gendingLabels: gendingLabels, onLabelTap: _handleSearch).buildJelajah();
-      case 2: return FooterWidget(currentTab: 2, isDarkMode: widget.isDarkMode, onTabTap: (i){}, onThemeChanged: widget.updateTheme, showInternalPage: _showInternalPage, gendingLabels: gendingLabels, onLabelTap: _handleSearch).buildTayubMode();
+      case 1: return footerContent.buildJelajah();
+      case 2: return footerContent.buildTayubMode(); // Sekarang Mode Tayub punya akses ke sitemap
       case 3: return _buildArticleList(_searchController.text.isNotEmpty ? searchResults : offlineArticles, isOfflineTab: true);
-      case 4: return FooterWidget(currentTab: 4, isDarkMode: widget.isDarkMode, onTabTap: (i){}, onThemeChanged: widget.updateTheme, showInternalPage: _showInternalPage, gendingLabels: gendingLabels, onLabelTap: _handleSearch).buildSetelan();
+      case 4: return footerContent.buildSetelan();
       default: return _buildArticleList(feedArticles);
     }
   }
@@ -412,27 +538,71 @@ class _RootNavigationState extends State<RootNavigation> {
     );
   }
 
-  Widget _buildThumbnail(Article a) {
-    if (a.imageUrl.isNotEmpty) {
-      return Image.network(
-        a.imageUrl, height: 180, width: double.infinity, fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => _buildPlaceholder(),
+Widget _buildThumbnail(Article a) {
+    // Matriks Invert untuk Mode Gelap
+    const ColorFilter invert = ColorFilter.matrix(<double>[
+      -1.0,  0.0,  0.0, 0.0, 255.0,
+       0.0, -1.0,  0.0, 0.0, 255.0,
+       0.0,  0.0, -1.0, 0.0, 255.0,
+       0.0,  0.0,  0.0, 1.0,   0.0,
+    ]);
+
+    Widget imageWidget;
+
+    // LOGIKA PINTAR: Cek apakah ada file lokal hasil download
+    if (a.localImagePath.isNotEmpty && File(a.localImagePath).existsSync()) {
+      imageWidget = Image.file(
+        File(a.localImagePath),
+        height: 180,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        cacheHeight: 350,
       );
+    } else if (a.imageUrl.isNotEmpty) {
+      imageWidget = Image.network(
+        a.imageUrl, 
+        height: 180, 
+        width: double.infinity, 
+        fit: BoxFit.cover,
+        cacheHeight: 350, 
+        errorBuilder: (c, e, s) => _buildPlaceholder(),
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return _buildPlaceholder();
+        },
+      );
+    } else {
+      return _buildPlaceholder();
     }
-    return _buildPlaceholder();
+
+    return ColorFiltered(
+      colorFilter: widget.isDarkMode ? invert : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+      child: imageWidget,
+    );
   }
 
   Widget _buildPlaceholder() {
     return Container(height: 180, width: double.infinity, color: Colors.grey[800], child: const Icon(Icons.music_note, size: 50, color: Colors.white24));
   }
 
-  void _confirmDelete(Article a) { 
+void _confirmDelete(Article a) { 
     showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Hapus Koleksi?"), actions: [
       TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")), 
       TextButton(onPressed: () async { 
+        // 1. Hapus file gambar fisiknya dari memori HP
+        if (a.localImagePath.isNotEmpty) {
+          final file = File(a.localImagePath);
+          if (await file.exists()) {
+            await file.delete();
+          }
+        }
+
+        // 2. Hapus data dari Database
         final db = await DatabaseHelper.getDatabase(); 
         await db.delete('offline_posts', where: 'id = ?', whereArgs: [a.id]); 
-        Navigator.pop(c); _loadOfflineData(); 
+        
+        Navigator.pop(c); 
+        _loadOfflineData(); // Refresh tampilan
       }, child: const Text("Hapus", style: TextStyle(color: Colors.red)))
     ])); 
   }

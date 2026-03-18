@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 
 class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
   final bool isDarkMode;
@@ -100,55 +101,63 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
   }
 
   // WIDGET FLOATING SUGGESTIONS (Muncul saat mengetik)
-  Widget buildFloatingSuggestions(BuildContext context) {
-    if (filteredSuggestions.isEmpty) return const SizedBox.shrink();
-    
-    return Positioned(
-      top: kToolbarHeight + MediaQuery.of(context).padding.top - 5, 
-      left: 110, 
-      right: 16,
-      child: Material(
-        elevation: 8, 
-        borderRadius: BorderRadius.circular(12),
-        color: isDarkMode ? const Color(0xFF1E1E1E).withOpacity(0.95) : Colors.white.withOpacity(0.98),
-        child: Container(
-          constraints: const BoxConstraints(maxHeight: 250),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isDarkMode ? Colors.white10 : Colors.grey[300]!),
-          ),
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 5), 
-            shrinkWrap: true,
-            itemCount: filteredSuggestions.length,
-            separatorBuilder: (c, i) => Divider(height: 1, color: isDarkMode ? Colors.white10 : Colors.grey[100]),
-            itemBuilder: (c, i) {
-              final suggestion = filteredSuggestions[i];
-              return ListTile(
-                dense: true, 
-                visualDensity: VisualDensity.compact,
-                leading: const Icon(Icons.history, size: 18, color: Colors.grey),
-                title: Text(
-                  suggestion['title']!, 
-                  style: TextStyle(
-                    fontSize: 14, 
-                    fontWeight: FontWeight.w500,
-                    color: isDarkMode ? Colors.white : Colors.black87
+Widget buildFloatingSuggestions(BuildContext context) {
+  if (filteredSuggestions.isEmpty) return const SizedBox.shrink();
+
+  return Positioned(
+    top: kToolbarHeight + 10, // Mengambang tepat di bawah Search Bar
+    left: 20,
+    right: 20,
+    child: Material(
+      elevation: 8, // Memberi efek bayangan agar terlihat mengambang
+      borderRadius: BorderRadius.circular(15),
+      color: Colors.transparent, // Kita buat transparan untuk efek blur
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: BackdropFilter(
+          // Efek blur latar belakang (Glassmorphism)
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), 
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 300), // Batasi tinggi saran
+            decoration: BoxDecoration(
+              // Warna background transparan (Hitam untuk Dark Mode, Putih untuk Light)
+              color: isDarkMode 
+                  ? Colors.black.withOpacity(0.7) 
+                  : Colors.white.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: isDarkMode ? Colors.white10 : Colors.black12,
+              ),
+            ),
+            child: ListView.separated(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              itemCount: filteredSuggestions.length,
+              separatorBuilder: (context, index) => Divider(
+                height: 1, 
+                color: isDarkMode ? Colors.white10 : Colors.black12
+              ),
+              itemBuilder: (context, index) {
+                final s = filteredSuggestions[index];
+                return ListTile(
+                  leading: const Icon(Icons.history, size: 20, color: Colors.red),
+                  title: Text(
+                    s['title'] ?? "",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDarkMode ? Colors.white : Colors.black87,
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onTap: () {
-                  searchController.text = suggestion['title']!;
-                  onSitemapTap(suggestion);
-                },
-              );
-            },
+                  onTap: () => onSitemapTap(s),
+                );
+              },
+            ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight + 2.0);

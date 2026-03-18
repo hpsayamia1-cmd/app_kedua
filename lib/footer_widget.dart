@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-// Import model Article dari main.dart jika diperlukan, 
-// atau pastikan callback mengirimkan data yang sesuai.
-
 class FooterWidget extends StatefulWidget {
   final int currentTab;
   final bool isDarkMode;
@@ -12,7 +9,8 @@ class FooterWidget extends StatefulWidget {
   final Function(String, String) showInternalPage;
   final List<String> gendingLabels;
   final Function(String) onLabelTap;
-  final Function(dynamic, dynamic)? onTayubSubmit; // Callback untuk kirim 2 gending
+  final List<Map<String, String>> sitemap; // Data dari main.dart
+  final Function(Map<String, String>, Map<String, String>)? onTayubSubmit; 
 
   const FooterWidget({
     super.key,
@@ -23,18 +21,22 @@ class FooterWidget extends StatefulWidget {
     required this.showInternalPage,
     required this.gendingLabels,
     required this.onLabelTap,
+    required this.sitemap,
     this.onTayubSubmit,
   });
 
   @override
   State<FooterWidget> createState() => _FooterWidgetState();
 
-  // Fungsi eksternal untuk dipanggil di main.dart
+  // Fungsi-fungsi pembantu tampilan yang dipanggil dari main.dart
   Widget buildJelajah() => _buildJelajahContent();
   Widget buildSetelan() => _buildSetelanContent();
-  Widget buildTayubMode() => _TayubModeView(onTayubSubmit: onTayubSubmit, isDarkMode: isDarkMode);
+  Widget buildTayubMode() => _TayubModeView(
+    onTayubSubmit: onTayubSubmit, 
+    isDarkMode: isDarkMode, 
+    sitemap: sitemap
+  );
 
-  // Helper untuk Jelajah (Tanpa Thumbnail/Aset)
   Widget _buildJelajahContent() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -43,7 +45,7 @@ class FooterWidget extends StatefulWidget {
         children: [
           const Text("Eksplorasi Notasi", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 5),
-          const Text("Cari berdasarkan kategori atau klasifikasi gending", style: TextStyle(color: Colors.grey)),
+          const Text("Cari berdasarkan kategori gending", style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 25),
           Wrap(
             spacing: 12,
@@ -68,7 +70,6 @@ class FooterWidget extends StatefulWidget {
     );
   }
 
-  // Helper untuk Setelan
   Widget _buildSetelanContent() {
     return ListView(
       padding: const EdgeInsets.all(10),
@@ -94,7 +95,7 @@ class FooterWidget extends StatefulWidget {
           title: const Text("Dukungan Kreator"),
           subtitle: const Text("Donasi untuk pengembangan aplikasi"),
           onTap: () async {
-            final Uri url = Uri.parse("https://link.dana.id/qr/MASUKKAN_ID_DANA_KAMU");
+            final Uri url = Uri.parse("https://link.dana.id/qr/CONTOH_ID");
             if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
           },
         ),
@@ -124,11 +125,13 @@ class _FooterWidgetState extends State<FooterWidget> {
   }
 }
 
-// Widget Khusus Mode Tayub (Dual Search)
+// --- WIDGET KHUSUS MODE TAYUB DENGAN VALIDASI ---
 class _TayubModeView extends StatefulWidget {
-  final Function(dynamic, dynamic)? onTayubSubmit;
+  final Function(Map<String, String>, Map<String, String>)? onTayubSubmit;
   final bool isDarkMode;
-  const _TayubModeView({this.onTayubSubmit, required this.isDarkMode});
+  final List<Map<String, String>> sitemap;
+
+  const _TayubModeView({this.onTayubSubmit, required this.isDarkMode, required this.sitemap});
 
   @override
   State<_TayubModeView> createState() => _TayubModeViewState();
@@ -137,53 +140,126 @@ class _TayubModeView extends StatefulWidget {
 class _TayubModeViewState extends State<_TayubModeView> {
   final TextEditingController _c1 = TextEditingController();
   final TextEditingController _c2 = TextEditingController();
+  
+  Map<String, String>? _selected1;
+  Map<String, String>? _selected2;
+  List<Map<String, String>> _suggestions = [];
+  int _activeField = 0; 
+
+void _filterSitemap(String query, int field) {
+    setState(() {
+      _activeField = field;
+      if (query.isEmpty) {
+        _suggestions = [];
+      } else {
+        // Ambil saran dari sitemap
+        var allSitemap = widget.sitemap.where((s) => 
+            s['title']!.toLowerCase().contains(query.toLowerCase())).toList();
+
+        // LOGIKA FILTER: Jika Offline, hanya tampilkan yang judulnya ada di koleksi terunduh
+        // (Asumsi: User hanya bisa pilih yang sudah ada datanya di HP)
+        // Jika Mas ingin membatasi secara ketat, Mas bisa mengirim daftar judul offline dari main.dart
+        
+        _suggestions = allSitemap.take(5).toList();
+      }
+      
+      if (field == 1) _selected1 = null;
+      if (field == 2) _selected2 = null;
+    });
+  }
+
+  void _selectSitemap(Map<String, String> item) {
+    setState(() {
+      if (_activeField == 1) {
+        _c1.text = item['title']!;
+        _selected1 = item;
+      } else {
+        _c2.text = item['title']!;
+        _selected2 = item;
+      }
+      _suggestions = [];
+      _activeField = 0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(25),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons. theater_comedy, size: 60, color: Colors.red),
-          const SizedBox(height: 10),
-          const Text("Mode Tayub", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const Text("Buka 2 notasi sekaligus secara vertikal", style: TextStyle(color: Colors.grey)),
-          const SizedBox(height: 30),
-          _buildSearchBox(_c1, "Cari Gending 1..."),
-          const SizedBox(height: 15),
-          _buildSearchBox(_c2, "Cari Gending 2..."),
-          const SizedBox(height: 30),
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+    bool isValid = _selected1 != null && _selected2 != null;
+
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(25),
+          child: Column(
+            children: [
+              const Icon(Icons.theater_comedy, size: 60, color: Colors.red),
+              const SizedBox(height: 10),
+              const Text("Mode Tayub", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text("Pilih 2 notasi dari saran sitemap", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 30),
+              
+              _buildSearchBox(_c1, "Cari Gending 1...", 1, _selected1 != null),
+              const SizedBox(height: 15),
+              const Icon(Icons.link, color: Colors.red),
+              const SizedBox(height: 15),
+              _buildSearchBox(_c2, "Cari Gending 2...", 2, _selected2 != null),
+              
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isValid ? Colors.red : Colors.grey[800],
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
+                  onPressed: isValid ? () => widget.onTayubSubmit!(_selected1!, _selected2!) : null,
+                  child: Text("BUKA 2 NOTASI", 
+                    style: TextStyle(color: isValid ? Colors.white : Colors.white24, fontWeight: FontWeight.bold)),
+                ),
               ),
-              onPressed: () {
-                // Di sini nanti logika mengambil data Artikel berdasarkan judul di controller
-                // Untuk sementara, kita kirimkan teksnya saja atau panggil fungsi pencarian
-                if (_c1.text.isNotEmpty && _c2.text.isNotEmpty) {
-                   // Callback ke main.dart untuk memproses dual view
-                   // onTayubSubmit akan diisi logika pencarian di main.dart
-                }
-              },
-              child: const Text("BUKA 2 NOTASI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+
+        // Floating Suggestions
+        if (_suggestions.isNotEmpty)
+          Positioned(
+            left: 25,
+            right: 25,
+            top: _activeField == 1 ? 210 : 315, 
+            child: Material(
+              elevation: 10,
+              borderRadius: BorderRadius.circular(10),
+              color: widget.isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: _suggestions.map((s) => ListTile(
+                  dense: true,
+                  title: Text(s['title']!, style: const TextStyle(fontSize: 14)),
+                  onTap: () => _selectSitemap(s),
+                )).toList(),
+              ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 
-  Widget _buildSearchBox(TextEditingController controller, String hint) {
+  Widget _buildSearchBox(TextEditingController controller, String hint, int field, bool isSelected) {
     return TextField(
       controller: controller,
+      onChanged: (val) => _filterSitemap(val, field),
+      style: TextStyle(
+        color: isSelected ? Colors.blue : (widget.isDarkMode ? Colors.white : Colors.black),
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: const Icon(Icons.search),
+        suffixIcon: isSelected 
+            ? const Icon(Icons.check_circle, color: Colors.green)
+            : const Icon(Icons.cancel, color: Colors.red, size: 20),
         filled: true,
         fillColor: widget.isDarkMode ? Colors.white10 : Colors.grey[100],
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
