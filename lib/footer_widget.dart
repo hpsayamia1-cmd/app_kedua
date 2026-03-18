@@ -37,35 +37,40 @@ class FooterWidget extends StatefulWidget {
     sitemap: sitemap
   );
 
-  Widget _buildJelajahContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("Eksplorasi Notasi", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 5),
-          const Text("Cari berdasarkan kategori gending", style: TextStyle(color: Colors.grey)),
-          const SizedBox(height: 25),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: gendingLabels.map((label) {
-              return InkWell(
-                onTap: () => onLabelTap(label),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isDarkMode ? Colors.white10 : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: isDarkMode ? Colors.white24 : Colors.black12),
+ Widget _buildJelajahContent() {
+    return Container( 
+      width: double.infinity,
+      height: double.infinity,
+      color: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Eksplorasi Notasi", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 5),
+            const Text("Cari berdasarkan kategori gending", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 25),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: gendingLabels.map((label) {
+                return InkWell(
+                  onTap: () => onLabelTap(label),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDarkMode ? Colors.white10 : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: isDarkMode ? Colors.white24 : Colors.black12),
+                    ),
+                    child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
-                  child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -194,81 +199,88 @@ void _filterSitemap(String query, int field) {
     });
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     bool isValid = _selected1 != null && _selected2 != null;
 
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          padding: const EdgeInsets.all(25),
-          child: Column(
-            children: [
-              const Icon(Icons.theater_comedy, size: 60, color: Colors.red),
-              const SizedBox(height: 10),
-              const Text("Mode Tayub", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const Text("Pilih 2 notasi dari saran sitemap", style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 30),
-              
-              _buildSearchBox(_c1, "Cari Gending 1...", 1, _selected1 != null),
-              const SizedBox(height: 15),
-              const Icon(Icons.link, color: Colors.red),
-              const SizedBox(height: 15),
-              _buildSearchBox(_c2, "Cari Gending 2...", 2, _selected2 != null),
-              const SizedBox(height: 15),
-              // --- TOMBOL RESET DI SINI ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  TextButton.icon(
-                    onPressed: _resetTayub,
-                    icon: const Icon(Icons.refresh, color: Colors.grey, size: 18),
-                    label: const Text("Reset Pilihan", 
-                      style: TextStyle(color: Colors.grey, fontSize: 13)),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isValid ? Colors.red : Colors.grey[800],
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                  onPressed: isValid ? () => widget.onTayubSubmit!(_selected1!, _selected2!) : null,
-                  child: Text("BUKA 2 NOTASI", 
-                    style: TextStyle(color: isValid ? Colors.white : Colors.white24, fontWeight: FontWeight.bold)),
+    // KUNCINYA: Membungkus Stack dengan Container agar Full Layar & Tidak Tembus
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(25),
+            child: Column(
+              children: [
+                const Icon(Icons.theater_comedy, size: 60, color: Colors.red),
+                const SizedBox(height: 10),
+                const Text("Mode Tayub", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const Text("Pilih 2 notasi dari saran sitemap", style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 30),
+                
+                _buildSearchBox(_c1, "Cari Gending 1...", 1, _selected1 != null),
+                const SizedBox(height: 15),
+                const Icon(Icons.link, color: Colors.red),
+                const SizedBox(height: 15),
+                _buildSearchBox(_c2, "Cari Gending 2...", 2, _selected2 != null),
+                const SizedBox(height: 15),
+                
+                // Tombol Reset Pilihan
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _resetTayub,
+                      icon: const Icon(Icons.refresh, color: Colors.grey, size: 18),
+                      label: const Text("Reset Pilihan", 
+                        style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-        ),
 
-        // Floating Suggestions
-        if (_suggestions.isNotEmpty)
-          Positioned(
-            left: 25,
-            right: 25,
-            top: _activeField == 1 ? 210 : 315, 
-            child: Material(
-              elevation: 10,
-              borderRadius: BorderRadius.circular(10),
-              color: widget.isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: _suggestions.map((s) => ListTile(
-                  dense: true,
-                  title: Text(s['title']!, style: const TextStyle(fontSize: 14)),
-                  onTap: () => _selectSitemap(s),
-                )).toList(),
-              ),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isValid ? Colors.red : Colors.grey[800],
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    ),
+                    onPressed: isValid ? () => widget.onTayubSubmit!(_selected1!, _selected2!) : null,
+                    child: Text("BUKA 2 NOTASI", 
+                      style: TextStyle(color: isValid ? Colors.white : Colors.white24, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
           ),
-      ],
-    );
+
+          // Floating Suggestions (Saran Sitemap) tetap aman di sini
+          if (_suggestions.isNotEmpty)
+            Positioned(
+              left: 25,
+              right: 25,
+              top: _activeField == 1 ? 210 : 315, 
+              child: Material(
+                elevation: 10,
+                borderRadius: BorderRadius.circular(10),
+                color: widget.isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: _suggestions.map((s) => ListTile(
+                    dense: true,
+                    title: Text(s['title']!, style: const TextStyle(fontSize: 14)),
+                    onTap: () => _selectSitemap(s),
+                  )).toList(),
+                ),
+              ),
+            ),
+        ], // Penutup children Stack
+      ), // Penutup Stack
+    ); // Penutup Container
   }
 
   Widget _buildSearchBox(TextEditingController controller, String hint, int field, bool isSelected) {

@@ -556,12 +556,16 @@ onTabTap: (i) {
   }
 
 Widget _buildTabContent() {
-    // 1. Jika memang sedang proses tarik data dari internet, tampilkan loading (skeleton)
-    if (isInitialLoading || isSearching) return _buildSkeletonList();
+    // 1. Ganti skeleton yang sudah dihapus dengan Loading Spinner
+    if (isInitialLoading || isSearching) {
+      return const Center(child: CircularProgressIndicator(color: Colors.red));
+    }
     
+    // 2. Cek jika offline dan tidak ada data
     if (_currentTab == 0 && isOffline && feedArticles.isEmpty) return _buildOfflineError();
     
-    final footerContent = FooterWidget(
+    // 3. FooterWidget di sini hanya untuk mengambil tampilan (bukan navigasi utama)
+    final menuContent = FooterWidget(
       currentTab: _currentTab,
       isDarkMode: widget.isDarkMode,
       onTabTap: (i) {}, 
@@ -569,30 +573,28 @@ Widget _buildTabContent() {
       showInternalPage: _showInternalPage,
       gendingLabels: gendingLabels,
       onLabelTap: _handleSearch,
-      sitemap: sitemapSuggestions,
+      sitemap: sitemapSuggestions.isNotEmpty 
+          ? sitemapSuggestions 
+          : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
       onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2),
     );
 
     switch (_currentTab) {
       case 0: 
-        // LOGIKA PERBAIKAN:
-        // Cek searchResults.isNotEmpty DULU. Jangan cuma cek teks controller-nya.
-        // Jika hasil cari ada, tampilkan. Jika tidak ada hasil TAPI sedang ngetik, 
-        // tetap tampilkan feedArticles (Beranda) sampai user tekan Enter/Sitemap.
+        // Beranda & Hasil Cari
         List<Article> displayList = searchResults.isNotEmpty ? searchResults : feedArticles;
         return _buildArticleList(displayList);
         
-      case 1: return footerContent.buildJelajah();
-      case 2: return footerContent.buildTayubMode();
+      case 1: return menuContent.buildJelajah(); // Ambil dari footer_widget.dart
+      case 2: return menuContent.buildTayubMode(); // Ambil dari footer_widget.dart
       case 3: 
+        // Koleksi Offline
         List<Article> offlineList = searchResults.isNotEmpty ? searchResults : offlineArticles;
         return _buildArticleList(offlineList, isOfflineTab: true);
-      case 4: return footerContent.buildSetelan();
+      case 4: return menuContent.buildSetelan(); // Ambil dari footer_widget.dart
       default: return _buildArticleList(feedArticles);
     }
 }
-
-  Widget _buildSkeletonList() => ListView.builder(itemCount: 5, itemBuilder: (c, i) => Padding(padding: const EdgeInsets.all(20), child: Container(height: 150, decoration: BoxDecoration(color: widget.isDarkMode ? Colors.white10 : Colors.grey[200], borderRadius: BorderRadius.circular(15)))));
   
   Widget _buildOfflineError() {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -603,82 +605,92 @@ Widget _buildTabContent() {
     ]));
   }
   
-  Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
-    if (isInitialLoading || isSearching) {
-      return _buildSkeletonList(); 
-    }
-    if (list.isEmpty) return Center(child: Text(isOfflineTab ? "Belum ada koleksi." : "Hasil tidak ditemukan."));
-    return ListView.builder(
-      controller: isOfflineTab ? null : _scrollController,
-      itemCount: list.length + (isMoreLoading ? 1 : 0), 
-      itemBuilder: (c, i) {
-        if (i == list.length) return const Center(child: CircularProgressIndicator(color: Colors.red));
-        final a = list[i];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          child: InkWell(
-            onTap: () => _openArticle(a),
-            child: Column(children: [
-              _buildThumbnail(a),
-              ListTile(
-                title: Text(a.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("Sinsangnot • ${a.label}"),
-                trailing: isOfflineTab ? IconButton(icon: const Icon(Icons.delete), onPressed: () => _confirmDelete(a)) : const Icon(Icons.chevron_right),
-              )
-            ]),
+Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
+  if (isInitialLoading || isSearching) {
+  return const Center(
+    child: CircularProgressIndicator(color: Colors.red),
+  );
+}
+  if (list.isEmpty) return Center(child: Text(isOfflineTab ? "Belum ada koleksi." : "Hasil tidak ditemukan."));
+
+  return Column(
+    children: [
+Padding(
+        padding: const EdgeInsets.only(top: 25, bottom: 10),
+        child: Column(
+          children: [
+            Text(
+              isOfflineTab 
+                  ? "KOLEKSI SAYA" 
+                  : (_searchController.text.isNotEmpty ? "HASIL PENCARIAN" : "DAFTAR ISI"),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+                color: widget.isDarkMode ? Colors.red[300] : Colors.red[900],
+              ),
+            ),
+            Container(height: 2, width: 35, color: Colors.red, margin: const EdgeInsets.only(top: 5)),
+          ],
+        ),
+      ),
+      Expanded(
+        child: GridView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          controller: isOfflineTab ? null : _scrollController,
+          padding: const EdgeInsets.all(8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 2.5, // Sedikit lebih tinggi agar muat teks & ikon
           ),
-        );
-      }
-    );
-  }
+          itemCount: list.length + (isMoreLoading ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == list.length) return const Center(child: CircularProgressIndicator(color: Colors.red));
+            final a = list[index];
+            bool isKiri = index % 2 == 0;
 
-Widget _buildThumbnail(Article a) {
-    // Matriks Invert untuk Mode Gelap
-    const ColorFilter invert = ColorFilter.matrix(<double>[
-      -1.0,  0.0,  0.0, 0.0, 255.0,
-       0.0, -1.0,  0.0, 0.0, 255.0,
-       0.0,  0.0, -1.0, 0.0, 255.0,
-       0.0,  0.0,  0.0, 1.0,   0.0,
-    ]);
-
-    Widget imageWidget;
-
-    // LOGIKA PINTAR: Cek apakah ada file lokal hasil download
-    if (a.localImagePath.isNotEmpty && File(a.localImagePath).existsSync()) {
-      imageWidget = Image.file(
-        File(a.localImagePath),
-        height: 180,
-        width: double.infinity,
-        fit: BoxFit.cover,
-      );
-    } else if (a.imageUrl.isNotEmpty) {
-      imageWidget = Image.network(
-        a.imageUrl, 
-        height: 180, 
-        width: double.infinity, 
-        fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => _buildPlaceholder(),
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildPlaceholder();
-        },
-      );
-    } else {
-      return _buildPlaceholder();
-    }
-
-    return ColorFiltered(
-      colorFilter: widget.isDarkMode ? invert : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
-      child: imageWidget,
-    );
-  }
+            return GestureDetector(
+              onTap: () => _openArticle(a),
+              onLongPress: isOfflineTab ? () => _confirmDelete(a) : null, // Tekan lama untuk hapus
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: isKiri ? BorderSide(color: widget.isDarkMode ? Colors.white10 : Colors.grey[300]!) : BorderSide.none,
+                    bottom: BorderSide(color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]!),
+                  ),
+                ),
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  children: [
+                    Text("${index + 1}.", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(a.title.toUpperCase(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          Text(a.label, style: TextStyle(fontSize: 9, color: Colors.grey[500])),
+                        ],
+                      ),
+                    ),
+                    // Jika di menu koleksi, munculkan ikon hapus kecil
+                    if (isOfflineTab)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 16, color: Colors.grey),
+                        onPressed: () => _confirmDelete(a),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
+}
   
-  Widget _buildPlaceholder() {
-    return Container(height: 180, width: double.infinity, color: Colors.grey[800], child: const Icon(Icons.music_note, size: 50, color: Colors.white24));
-  }
-
 void _confirmDelete(Article a) { 
     showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Hapus Koleksi?"), actions: [
       TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")), 
