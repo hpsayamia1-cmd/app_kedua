@@ -87,6 +87,7 @@ class RootNavigation extends StatefulWidget {
 
 class _RootNavigationState extends State<RootNavigation> {
   int _currentTab = 0;
+  int? _previousTab;
   Article? selectedArticle;
   List<Article>? dualArticles; // Untuk Mode Tayub (2 Artikel)
   
@@ -455,38 +456,59 @@ final header = HeaderWidget(
     );
 
 return WillPopScope(
-  onWillPop: () async { 
-    // 1. Jika sedang buka artikel, tutup artikelnya (Balik ke Tab yang aktif sebelumnya)
-    if (selectedArticle != null || dualArticles != null) { 
-      setState(() { selectedArticle = null; dualArticles = null; }); 
-      return false; 
-    } 
-    // 2. Jika sedang di tab selain Beranda (0), balikkan ke Beranda dulu
-    if (_currentTab != 0) { 
-      setState(() { _currentTab = 0; _resetSearch(); }); 
-      return false; 
-    } 
-    return true; // Keluar aplikasi
-  },
+onWillPop: () async { 
+  if (_currentTab != 0 && (selectedArticle != null || dualArticles != null)) { 
+    setState(() { 
+      _currentTab = 0; 
+    }); 
+    return false;
+  } 
+  if (selectedArticle != null || dualArticles != null) { 
+    setState(() { 
+      selectedArticle = null;
+      dualArticles = null; 
+    }); 
+    return false; 
+  } 
+  if (_currentTab != 0) { 
+    setState(() { _currentTab = 0; _resetSearch(); }); 
+    return false; 
+  } 
+
+  return true;
+},
       child: Scaffold(
         appBar: header,
-        body: Stack(children: [
-          selectedArticle != null 
-            ? ArticleReader(
-                article: selectedArticle!, 
-                isDarkMode: widget.isDarkMode, 
-                onClose: () => setState(() => selectedArticle = null)
-              )
-            : dualArticles != null
-                ? ArticleReader(
-                    articles: dualArticles!, 
-                    isDarkMode: widget.isDarkMode, 
-                    isDualMode: true,
-                    onClose: () => setState(() => dualArticles = null)
-                  )
-                : RefreshIndicator(color: Colors.red, onRefresh: _fetchInitialFeed, child: _buildTabContent()),
+body: Stack(
+        children: [
+          if (selectedArticle != null)
+            ArticleReader(
+              article: selectedArticle!, 
+              isDarkMode: widget.isDarkMode, 
+              onClose: () => setState(() => selectedArticle = null),
+            ),
+
+          if (dualArticles != null)
+            ArticleReader(
+              articles: dualArticles!, 
+              isDarkMode: widget.isDarkMode, 
+              isDualMode: true,
+              onClose: () => setState(() => dualArticles = null),
+            ),
+          if (_currentTab != 0)
+            Container(
+              color: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+              child: _buildTabContent(),
+            )
+          else
+            RefreshIndicator(
+              color: Colors.red, 
+              onRefresh: _fetchInitialFeed, 
+              child: _buildTabContent(),
+            ),
           header.buildFloatingSuggestions(context),
-        ]),
+        ],
+      ),
 bottomNavigationBar: FooterWidget(
   currentTab: _currentTab,
   isDarkMode: widget.isDarkMode,
@@ -497,7 +519,8 @@ bottomNavigationBar: FooterWidget(
 onTabTap: (i) { 
   _resetSearch(); 
   setState(() { 
-    _currentTab = i;
+    _previousTab = _currentTab;
+    _currentTab = i; 
   }); 
   if (i == 3) _loadOfflineData(); 
 },

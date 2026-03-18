@@ -105,7 +105,7 @@ Widget buildFloatingSuggestions(BuildContext context) {
   if (filteredSuggestions.isEmpty) return const SizedBox.shrink();
 
   return Positioned(
-    top: kToolbarHeight + 0, // Mengambang tepat di bawah Search Bar
+    top: 0, // Mengambang tepat di bawah Search Bar
     left: 20,
     right: 20,
     child: Material(
@@ -120,15 +120,15 @@ Widget buildFloatingSuggestions(BuildContext context) {
           child: Container(
             constraints: const BoxConstraints(maxHeight: 300), // Batasi tinggi saran
             decoration: BoxDecoration(
-              // Warna background transparan (Hitam untuk Dark Mode, Putih untuk Light)
-              color: isDarkMode 
-                  ? Colors.black.withOpacity(0.7) 
-                  : Colors.white.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(
-                color: isDarkMode ? Colors.white10 : Colors.black12,
-              ),
-            ),
+  color: isDarkMode 
+      ? const Color(0xFF06140C).withOpacity(0.9)
+      : Colors.white.withOpacity(0.8),
+  borderRadius: BorderRadius.circular(15),
+  border: Border.all(
+    color: isDarkMode ? const Color(0xFF0F2D1A) : Colors.black12,
+    width: 1,
+  ),
+),
             child: ListView.separated(
               padding: EdgeInsets.zero,
               shrinkWrap: true,
