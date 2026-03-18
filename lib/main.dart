@@ -459,10 +459,11 @@ return WillPopScope(
 onWillPop: () async { 
   if (_currentTab != 0 && (selectedArticle != null || dualArticles != null)) { 
     setState(() { 
-      _currentTab = 0; 
+      _currentTab = 0;
     }); 
-    return false;
+    return false; 
   } 
+
   if (selectedArticle != null || dualArticles != null) { 
     setState(() { 
       selectedArticle = null;
@@ -486,19 +487,13 @@ body: Stack(
               article: selectedArticle!, 
               isDarkMode: widget.isDarkMode, 
               onClose: () => setState(() => selectedArticle = null),
-            ),
-
-          if (dualArticles != null)
+            )
+          else if (dualArticles != null)
             ArticleReader(
               articles: dualArticles!, 
               isDarkMode: widget.isDarkMode, 
               isDualMode: true,
               onClose: () => setState(() => dualArticles = null),
-            ),
-          if (_currentTab != 0)
-            Container(
-              color: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-              child: _buildTabContent(),
             )
           else
             RefreshIndicator(

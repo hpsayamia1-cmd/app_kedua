@@ -121,7 +121,7 @@ Widget buildFloatingSuggestions(BuildContext context) {
             constraints: const BoxConstraints(maxHeight: 300), // Batasi tinggi saran
             decoration: BoxDecoration(
   color: isDarkMode 
-      ? const Color(0xFF06140C).withOpacity(0.9)
+      ? const Color(0xFF0A2417).withOpacity(0.95)
       : Colors.white.withOpacity(0.8),
   borderRadius: BorderRadius.circular(15),
   border: Border.all(
