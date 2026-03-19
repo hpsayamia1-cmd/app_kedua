@@ -72,14 +72,14 @@ class _ArticleReaderState extends State<ArticleReader> {
             Positioned(
               bottom: 30, 
               right: 20,  
-              child: FloatingActionButton.large(
-                elevation: 8,
+              child: FloatingActionButton(
+                elevation: 6,
                 backgroundColor: _localIsSaved ? Colors.green : Colors.red,
                 onPressed: _localIsSaved ? null : () => _saveToOffline(context, widget.article!),
                 child: Icon(
                   _localIsSaved ? Icons.check : Icons.download_for_offline,
                   color: Colors.white,
-                  size: 40,
+                  size: 28,
                 ),
               ),
             ),

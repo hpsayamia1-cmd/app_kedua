@@ -65,7 +65,8 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
 
 // Model Artikel yang mendukung WebP
 class Article {
-  final String id, title, content, url, label, imageUrl, localImagePath; // Tambah localImagePath
+  final String id, title, content, url, label, imageUrl, localImagePath;
+  final String? lirik;
   Article({
     required this.id, 
     required this.title, 
@@ -74,6 +75,7 @@ class Article {
     required this.label,
     this.imageUrl = "",
     this.localImagePath = "",
+    this.lirik,
   });
 }
 
