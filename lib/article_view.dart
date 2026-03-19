@@ -183,8 +183,35 @@ class _ArticleReaderState extends State<ArticleReader> {
       ),
     );
   }
+  void _showLoading(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // User tidak bisa asal klik luar untuk nutup
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: widget.isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: Colors.red),
+                const SizedBox(width: 20),
+                Text(
+                  "Menyimpan ke Koleksi...",
+                  style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _saveToOffline(BuildContext context, Article art) async {
+    _showLoading(context);
     try {
       var data = _parseContent(art.content);
       String imageUrl = data['image'] ?? "";
@@ -217,6 +244,7 @@ class _ArticleReaderState extends State<ArticleReader> {
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+    if (context.mounted) Navigator.of(context).pop();
 
       setState(() => _localIsSaved = true);
       widget.onDownload();
@@ -228,6 +256,7 @@ class _ArticleReaderState extends State<ArticleReader> {
         ),
       );
     } catch (e) {
+      if (context.mounted) Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Gagal simpan: $e"), backgroundColor: Colors.red),
       );
