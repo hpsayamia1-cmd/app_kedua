@@ -911,6 +911,7 @@ void _viewNoteDetail(Map<String, dynamic> note) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
       builder: (context) => Scaffold(
         appBar: AppBar(title: const Text("Detail Catatan"), backgroundColor: Colors.transparent),
@@ -933,21 +934,38 @@ void _viewNoteDetail(Map<String, dynamic> note) {
     );
   }
 
-  void _openNoteEditor({Map<String, dynamic>? existingNote}) {
+ void _openNoteEditor({Map<String, dynamic>? existingNote}) {
     TextEditingController tC = TextEditingController(text: existingNote?['title'] ?? "");
     TextEditingController cC = TextEditingController(text: existingNote?['content'] ?? "");
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true, // Melindungi dari area poni/notch HP
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom, 
+          left: 20, 
+          right: 20, 
+          top: 10 // Jarak sedikit dari lengkungan modal
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min, // Mengikuti isi tapi bisa memanjang
           children: [
+            // Handle garis kecil agar tampilan lebih manis
+            Container(
+              width: 40, height: 4, 
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+            ),
             TextField(controller: tC, decoration: const InputDecoration(hintText: "Judul Catatan")),
             const SizedBox(height: 10),
-            TextField(controller: cC, maxLines: 5, decoration: const InputDecoration(hintText: "Isi catatan...")),
+            // MaxLines kita buat lebih besar agar area mengetik langsung luas ke atas
+            TextField(
+              controller: cC, 
+              maxLines: 15, // Langsung membuat kotak tulisan tinggi ke atas
+              decoration: const InputDecoration(hintText: "Isi catatan...")
+            ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
