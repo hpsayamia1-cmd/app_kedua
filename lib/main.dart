@@ -422,6 +422,11 @@ Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) a
     }
   }
 
+bool _isDownloaded(String id) {
+    // Mengecek apakah ID gending ini sudah ada di daftar offlineArticles
+    return offlineArticles.any((a) => a.id == id);
+  }
+
 Future<void> _loadOfflineData() async {
     final db = await DatabaseHelper.getDatabase();
     final maps = await db.query('offline_posts');
@@ -560,20 +565,27 @@ body: Stack(
               child: _buildTabContent(),
             ),
 
-          if (selectedArticle != null)
+if (selectedArticle != null)
             ArticleReader(
               article: selectedArticle!, 
               isDarkMode: widget.isDarkMode, 
+              // PASTIKAN DUA BARIS INI ADA:
+              isSaved: _isDownloaded(selectedArticle!.id), 
+              onDownload: () async {
+                await _loadOfflineData();
+              },
               onClose: () => setState(() => selectedArticle = null),
             ),
 
-          if (dualArticles != null)
-            ArticleReader(
-              articles: dualArticles!, 
-              isDarkMode: widget.isDarkMode, 
-              isDualMode: true,
-              onClose: () => setState(() => dualArticles = null),
-            ),
+if (dualArticles != null)
+  ArticleReader(
+    articles: dualArticles!, 
+    isDarkMode: widget.isDarkMode, 
+    isDualMode: true,
+    isSaved: false, // Tambahan formal
+    onDownload: () {}, // Tambahan formal
+    onClose: () => setState(() => dualArticles = null),
+  ),
 
           if (_currentTab != 0)
             Container(

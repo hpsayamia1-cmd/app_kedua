@@ -4,16 +4,18 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:sqflite/sqflite.dart'; // <--- TAMBAHKAN INI agar ConflictAlgorithm terbaca
-import 'main.dart'; // Untuk akses model Article
+import 'package:sqflite/sqflite.dart'; 
+import 'main.dart'; 
 import 'database_helper.dart';
 
-class ArticleReader extends StatelessWidget {
-  final Article? article; // Untuk mode tunggal
-  final List<Article>? articles; // Untuk mode Tayub (Dual)
+class ArticleReader extends StatefulWidget {
+  final Article? article;
+  final List<Article>? articles;
   final bool isDarkMode;
   final bool isDualMode;
   final VoidCallback onClose;
+  final bool isSaved;        
+  final VoidCallback onDownload; 
 
   const ArticleReader({
     super.key,
@@ -22,19 +24,31 @@ class ArticleReader extends StatelessWidget {
     required this.isDarkMode,
     this.isDualMode = false,
     required this.onClose,
+    this.isSaved = false,
+    required this.onDownload,
   });
 
-  // Fungsi untuk memisahkan gambar WebP dan Lirik dari konten HTML blogger
+  @override
+  State<ArticleReader> createState() => _ArticleReaderState();
+}
+
+class _ArticleReaderState extends State<ArticleReader> {
+  late bool _localIsSaved;
+
+  @override
+  void initState() {
+    super.initState();
+    _localIsSaved = widget.isSaved; 
+  }
+
   Map<String, String> _parseContent(String html) {
     String imageUrl = "";
     String lirik = "";
 
-    // Ambil URL Gambar
     RegExp imgRegExp = RegExp(r'src="([^"]+)"');
     var imgMatch = imgRegExp.firstMatch(html);
     if (imgMatch != null) imageUrl = imgMatch.group(1) ?? "";
 
-    // Ambil isi di dalam <pre class="lirik">
     RegExp lirikRegExp = RegExp(r'<pre class="lirik">([\s\S]*?)<\/pre>');
     var lirikMatch = lirikRegExp.firstMatch(html);
     if (lirikMatch != null) {
@@ -47,30 +61,33 @@ class ArticleReader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: isDarkMode ? Colors.white : Colors.black),
-          onPressed: onClose,
-        ),
-        title: Text(
-          isDualMode ? "Mode Tayub" : (article?.title ?? ""),
-          style: TextStyle(color: isDarkMode ? Colors.white : Colors.black, fontSize: 16),
-        ),
-        actions: [
-          if (!isDualMode) IconButton(
-            icon: const Icon(Icons.download_for_offline, color: Colors.red),
-            onPressed: () => _saveToOffline(context, article!),
-          )
+      backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      body: Stack(
+        children: [
+          // Konten Notasi & Lirik
+          widget.isDualMode ? _buildDualView() : _buildSingleView(widget.article!),
+
+          // Tombol Download Mengambang (Floating Pojok Kanan Bawah)
+          if (!widget.isDualMode)
+            Positioned(
+              bottom: 30, 
+              right: 20,  
+              child: FloatingActionButton.large(
+                elevation: 8,
+                backgroundColor: _localIsSaved ? Colors.green : Colors.red,
+                onPressed: _localIsSaved ? null : () => _saveToOffline(context, widget.article!),
+                child: Icon(
+                  _localIsSaved ? Icons.check : Icons.download_for_offline,
+                  color: Colors.white,
+                  size: 40,
+                ),
+              ),
+            ),
         ],
       ),
-      body: isDualMode ? _buildDualView() : _buildSingleView(article!),
     );
   }
 
-  // Tampilan 1 Gending
   Widget _buildSingleView(Article art) {
     var data = _parseContent(art.content);
     return InteractiveViewer(
@@ -82,26 +99,25 @@ class ArticleReader extends StatelessWidget {
           children: [
             _buildNotasiImage(data['image']!),
             if (data['lirik']!.isNotEmpty) _buildLirikBox(data['lirik']!),
-            const SizedBox(height: 50),
+            const SizedBox(height: 120), // Beri jarak agar tidak tertutup tombol FAB
           ],
         ),
       ),
     );
   }
 
-  // Tampilan 2 Gending Vertikal (Mode Tayub)
   Widget _buildDualView() {
     return ListView.builder(
-      itemCount: articles?.length ?? 0,
+      itemCount: widget.articles?.length ?? 0,
       itemBuilder: (context, index) {
-        var data = _parseContent(articles![index].content);
+        var data = _parseContent(widget.articles![index].content);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Text(
-                "Gending ${index + 1}: ${articles![index].title}",
+                "Gending ${index + 1}: ${widget.articles![index].title}",
                 style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
               ),
             ),
@@ -114,7 +130,6 @@ class ArticleReader extends StatelessWidget {
     );
   }
 
-  // Widget Penampil Gambar dengan Filter Mode Gelap
   Widget _buildNotasiImage(String url) {
     if (url.isEmpty) return const SizedBox();
 
@@ -127,7 +142,8 @@ class ArticleReader extends StatelessWidget {
 
     return RepaintBoundary( 
       child: ColorFiltered(
-        colorFilter: isDarkMode ? invertMatrix : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+        // PERBAIKAN: Pakai widget.isDarkMode
+        colorFilter: widget.isDarkMode ? invertMatrix : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
         child: CachedNetworkImage(
           imageUrl: url,
           width: double.infinity,
@@ -148,10 +164,11 @@ class ArticleReader extends StatelessWidget {
   Widget _buildLirikBox(String lirik) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(top: 20),
+      margin: const EdgeInsets.only(top: 20, left: 15, right: 15),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey[100],
+        // PERBAIKAN: Pakai widget.isDarkMode
+        color: widget.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey[100],
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
@@ -160,7 +177,8 @@ class ArticleReader extends StatelessWidget {
           fontSize: 15,
           height: 1.6,
           fontFamily: 'monospace', 
-          color: isDarkMode ? Colors.white70 : Colors.black87,
+          // PERBAIKAN: Pakai widget.isDarkMode
+          color: widget.isDarkMode ? Colors.white70 : Colors.black87,
         ),
       ),
     );
@@ -199,6 +217,9 @@ class ArticleReader extends StatelessWidget {
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+
+      setState(() => _localIsSaved = true);
+      widget.onDownload();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
