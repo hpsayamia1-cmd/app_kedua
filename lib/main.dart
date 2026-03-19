@@ -98,6 +98,8 @@ class _RootNavigationState extends State<RootNavigation> {
   
   List<Article> feedArticles = [], searchResults = [], offlineArticles = [];
   List<Map<String, dynamic>> _userNotes = [];
+  List<Map<String, dynamic>> _filteredNotes = []; // Untuk menampung hasil pencarian catatan
+  final TextEditingController _noteSearchController = TextEditingController(); // Controller khusus kolom cari catatan
   List<Map<String, String>> sitemapSuggestions = [], filteredSuggestions = [];
   bool isInitialLoading = true, isSearching = false, isOffline = false, isMoreLoading = false;
   
@@ -446,28 +448,51 @@ Future<void> _loadOfflineData() async {
     });
   }
 
-// --- FITUR CATATAN ---
-  Future<void> _loadNotes() async {
+// --- FITUR LOGIKA CATATAN (VERSI LENGKAP) ---
+Future<void> _loadNotes() async {
     final db = await DatabaseHelper.getDatabase();
     final data = await db.query('notes', orderBy: 'id DESC');
-    setState(() { _userNotes = data; });
+    setState(() { 
+      _userNotes = data; 
+      _filteredNotes = data; // Saat pertama muat, tampilkan semua
+    });
   }
 
-  Future<void> _saveNote(String title, String content) async {
-    if (title.isEmpty || content.isEmpty) return;
+  // ANTI-DUPLIKAT & VALIDASI JUDUL
+  Future<void> _saveNote(String title, String content, {int? id}) async {
+    String finalTitle = title.trim().isEmpty ? "Catatan Tanpa Judul" : title;
+    if (content.trim().isEmpty) return; // Isi catatan wajib ada
+
     final db = await DatabaseHelper.getDatabase();
-    await db.insert('notes', {
-      'title': title,
+    final data = {
+      'title': finalTitle,
       'content': content,
       'date': DateTime.now().toString(),
+    };
+
+    if (id == null) {
+      await db.insert('notes', data);
+    } else {
+      // Update data yang sudah ada berdasarkan ID agar tidak dobel
+      await db.update('notes', data, where: 'id = ?', whereArgs: [id]);
+    }
+    _loadNotes(); // Refresh daftar
+  }
+
+  // FUNGSI FILTER PENCARIAN CATATAN
+  void _filterNotes(String query) {
+    setState(() {
+      _filteredNotes = _userNotes
+          .where((n) => n['title'].toLowerCase().contains(query.toLowerCase()) || 
+                        n['content'].toLowerCase().contains(query.toLowerCase()))
+          .toList();
     });
-    _loadNotes(); // Refresh daftar setelah simpan
   }
 
   Future<void> _deleteNote(int id) async {
     final db = await DatabaseHelper.getDatabase();
     await db.delete('notes', where: 'id = ?', whereArgs: [id]);
-    _loadNotes(); // Refresh daftar setelah hapus
+    _loadNotes();
   }
 
   void _resetSearch() { 
@@ -822,7 +847,7 @@ void _confirmDelete(Article a) {
       }, child: const Text("Hapus", style: TextStyle(color: Colors.red)))
     ])); 
   }
-  Widget _buildNotesUI() {
+Widget _buildNotesUI() {
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
@@ -833,22 +858,41 @@ void _confirmDelete(Article a) {
       body: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.all(20),
+            padding: EdgeInsets.only(top: 20),
             child: Text("CATATAN SAYA", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 2)),
           ),
+          
+          // --- KOLOM PENCARIAN KHUSUS CATATAN (DI BAWAH JUDUL) ---
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            child: TextField(
+              controller: _noteSearchController,
+              onChanged: _filterNotes, // Panggil fungsi filter setiap kali mengetik
+              decoration: InputDecoration(
+                hintText: "Cari di catatan gending...",
+                prefixIcon: const Icon(Icons.search, size: 20),
+                filled: true,
+                fillColor: widget.isDarkMode ? Colors.white10 : Colors.grey[100],
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              ),
+            ),
+          ),
+
           Expanded(
-            child: _userNotes.isEmpty 
-            ? const Center(child: Text("Belum ada catatan."))
+            child: _filteredNotes.isEmpty 
+            ? const Center(child: Text("Tidak ada catatan ditemukan."))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 15),
-                itemCount: _userNotes.length,
+                itemCount: _filteredNotes.length,
                 itemBuilder: (context, i) {
-                  final n = _userNotes[i];
+                  final n = _filteredNotes[i];
                   return Card(
                     color: widget.isDarkMode ? Colors.white10 : Colors.grey[100],
                     child: ListTile(
+                      onTap: () => _viewNoteDetail(n), // Klik untuk baca (seperti permintaan Mas)
                       title: Text(n['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(n['content'], maxLines: 2, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(n['content'], maxLines: 1, overflow: TextOverflow.ellipsis),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_sweep, color: Colors.red),
                         onPressed: () => _deleteNote(n['id']),
@@ -863,13 +907,38 @@ void _confirmDelete(Article a) {
     );
   }
 
-  void _openNoteEditor() {
-    TextEditingController tC = TextEditingController();
-    TextEditingController cC = TextEditingController();
+void _viewNoteDetail(Map<String, dynamic> note) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
+      backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      builder: (context) => Scaffold(
+        appBar: AppBar(title: const Text("Detail Catatan"), backgroundColor: Colors.transparent),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column( // Tambahkan Column agar judul bisa tampil
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(note['title'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
+              const Divider(height: 30),
+              Text(note['content'], style: const TextStyle(fontSize: 16, height: 1.6)),
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          child: const Icon(Icons.edit),
+          onPressed: () { Navigator.pop(context); _openNoteEditor(existingNote: note); },
+        ),
+      ),
+    );
+  }
+
+  void _openNoteEditor({Map<String, dynamic>? existingNote}) {
+    TextEditingController tC = TextEditingController(text: existingNote?['title'] ?? "");
+    TextEditingController cC = TextEditingController(text: existingNote?['content'] ?? "");
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
@@ -878,17 +947,17 @@ void _confirmDelete(Article a) {
           children: [
             TextField(controller: tC, decoration: const InputDecoration(hintText: "Judul Catatan")),
             const SizedBox(height: 10),
-            TextField(controller: cC, maxLines: 5, decoration: const InputDecoration(hintText: "Tulis isi catatan di sini...")),
+            TextField(controller: cC, maxLines: 5, decoration: const InputDecoration(hintText: "Isi catatan...")),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () {
-                  _saveNote(tC.text, cC.text);
+                  _saveNote(tC.text, cC.text, id: existingNote?['id']);
                   Navigator.pop(context);
                 },
-                child: const Text("Simpan Catatan", style: TextStyle(color: Colors.white)),
+                child: const Text("Simpan", style: TextStyle(color: Colors.white)),
               ),
             ),
             const SizedBox(height: 20),
