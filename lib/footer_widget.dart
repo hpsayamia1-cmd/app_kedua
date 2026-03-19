@@ -64,7 +64,7 @@ Widget _buildCatatanWrapper(Widget child) {
         ListTile(
           leading: const Icon(Icons.info_outline),
           title: const Text("Tentang Sinsangnot"),
-          onTap: () => showInternalPage("Tentang", "Sinsangnot adalah aplikasi koleksi notasi gending Jawa yang dikembangkan untuk memudahkan akses dan eksplorasi musik tradisional. Aplikasi ini bersifat open-source dan terus dikembangkan dengan dukungan komunitas. Semua data notasi diambil dari sumber yang sah dan dihormati hak ciptanya. Pembuatan aplikasi ini dilakukan dengan tujuan untuk melestarikan dan memperluas akses terhadap warisan budaya musik Jawa. Dengan alat yang seadanya saya sebagai Developer apk sangat berterimikasih atas penggunaan aplikasi yang sederhana ini. Komentar serta masukan anda sangat bermanfaat bagi kami dan Terima kasih telah menggunakan Sinsangnot!"),
+          onTap: () => showInternalPage("Tentang", "Sinsangnot adalah aplikasi koleksi notasi gending Jawa yang dikembangkan untuk memudahkan akses dan eksplorasi musik tradisional. Aplikasi ini bersifat open-source dan terus dikembangkan dengan dukungan komunitas. Semua data notasi diambil dari sumber yang sah dan dihormati hak ciptanya. Pembuatan aplikasi ini dilakukan dengan tujuan untuk melestarikan dan memperluas akses terhadap warisan budaya musik Jawa. Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas penggunaan aplikasi yang sederhana ini. Komentar serta masukan anda sangat bermanfaat bagi kami untuk terus mengembangkan aplikasi ini. Saya akan terus menambah notasi baru. Anda juga bisa Request lirik gending atau notasi di blog Sinsangnot (Cari di Google dengan query 'Sinsangnot'). Terima kasih telah menggunakan Sinsangnot!"),
         ),
         ListTile(
           leading: const Icon(Icons.favorite, color: Colors.red),
@@ -73,8 +73,21 @@ Widget _buildCatatanWrapper(Widget child) {
           onTap: () async {
             final Uri url = Uri.parse("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526");
             if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+
           },
         ),
+        ListTile(
+          leading: const Icon(Icons.public, color: Colors.blue), // Ikon bola dunia warna biru
+          title: const Text("Kunjungi Blog Resmi"),
+          subtitle: const Text("Baca notasi terbaru & request gending di sinsangnot.blogspot.com"),
+          onTap: () async {
+            final Uri url = Uri.parse("https://sinsangnot.blogspot.com");
+            if (await canLaunchUrl(url)) {
+              await launchUrl(url, mode: LaunchMode.externalApplication);
+            }
+          },
+        ),
+        
       ],
     );
   }
@@ -128,13 +141,8 @@ void _filterSitemap(String query, int field) {
       if (query.isEmpty) {
         _suggestions = [];
       } else {
-        // Ambil saran dari sitemap
         var allSitemap = widget.sitemap.where((s) => 
             s['title']!.toLowerCase().contains(query.toLowerCase())).toList();
-
-        // LOGIKA FILTER: Jika Offline, hanya tampilkan yang judulnya ada di koleksi terunduh
-        // (Asumsi: User hanya bisa pilih yang sudah ada datanya di HP)
-        // Jika Mas ingin membatasi secara ketat, Mas bisa mengirim daftar judul offline dari main.dart
         
         _suggestions = allSitemap.take(5).toList();
       }
@@ -188,7 +196,7 @@ void _filterSitemap(String query, int field) {
                 const Icon(Icons.theater_comedy, size: 60, color: Colors.red),
                 const SizedBox(height: 10),
                 const Text("Mode Tayub", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const Text("Pilih 2 notasi dari saran sitemap", style: TextStyle(color: Colors.grey)),
+                const Text("Anda harus memilih 2 notasi yang muncul di saran pencarian", style: TextStyle(color: Colors.grey)),
                 const SizedBox(height: 30),
                 
                 _buildSearchBox(_c1, "Cari Gending 1...", 1, _selected1 != null),
