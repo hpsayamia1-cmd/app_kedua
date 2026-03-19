@@ -97,6 +97,7 @@ class _RootNavigationState extends State<RootNavigation> {
   double _splashOpacity = 0.0;
   
   List<Article> feedArticles = [], searchResults = [], offlineArticles = [];
+  List<Map<String, dynamic>> _userNotes = [];
   List<Map<String, String>> sitemapSuggestions = [], filteredSuggestions = [];
   bool isInitialLoading = true, isSearching = false, isOffline = false, isMoreLoading = false;
   
@@ -445,6 +446,30 @@ Future<void> _loadOfflineData() async {
     });
   }
 
+// --- FITUR CATATAN ---
+  Future<void> _loadNotes() async {
+    final db = await DatabaseHelper.getDatabase();
+    final data = await db.query('notes', orderBy: 'id DESC');
+    setState(() { _userNotes = data; });
+  }
+
+  Future<void> _saveNote(String title, String content) async {
+    if (title.isEmpty || content.isEmpty) return;
+    final db = await DatabaseHelper.getDatabase();
+    await db.insert('notes', {
+      'title': title,
+      'content': content,
+      'date': DateTime.now().toString(),
+    });
+    _loadNotes(); // Refresh daftar setelah simpan
+  }
+
+  Future<void> _deleteNote(int id) async {
+    final db = await DatabaseHelper.getDatabase();
+    await db.delete('notes', where: 'id = ?', whereArgs: [id]);
+    _loadNotes(); // Refresh daftar setelah hapus
+  }
+
   void _resetSearch() { 
     _searchController.clear(); 
     _searchFocusNode.unfocus(); 
@@ -611,6 +636,7 @@ onTabTap: (i) {
     _previousTab = _currentTab;
     _currentTab = i; 
   }); 
+  if (i == 1) _loadNotes(); 
   if (i == 3) _loadOfflineData(); 
 },
   onThemeChanged: widget.updateTheme,
@@ -653,7 +679,8 @@ Widget _buildTabContent() {
         List<Article> displayList = searchResults.isNotEmpty ? searchResults : feedArticles;
         return _buildArticleList(displayList);
         
-      case 1: return menuContent.buildJelajah(); // Ambil dari footer_widget.dart
+      case 1: return menuContent.buildCatatan(
+      child: _buildNotesUI(),);
       case 2: return menuContent.buildTayubMode(); // Ambil dari footer_widget.dart
       case 3: 
         // Koleksi Offline
@@ -794,5 +821,80 @@ void _confirmDelete(Article a) {
         _loadOfflineData(); // Refresh tampilan
       }, child: const Text("Hapus", style: TextStyle(color: Colors.red)))
     ])); 
+  }
+  Widget _buildNotesUI() {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.red,
+        child: const Icon(Icons.add, color: Colors.white),
+        onPressed: () => _openNoteEditor(),
+      ),
+      body: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text("CATATAN SAYA", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 2)),
+          ),
+          Expanded(
+            child: _userNotes.isEmpty 
+            ? const Center(child: Text("Belum ada catatan."))
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 15),
+                itemCount: _userNotes.length,
+                itemBuilder: (context, i) {
+                  final n = _userNotes[i];
+                  return Card(
+                    color: widget.isDarkMode ? Colors.white10 : Colors.grey[100],
+                    child: ListTile(
+                      title: Text(n['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(n['content'], maxLines: 2, overflow: TextOverflow.ellipsis),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_sweep, color: Colors.red),
+                        onPressed: () => _deleteNote(n['id']),
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openNoteEditor() {
+    TextEditingController tC = TextEditingController();
+    TextEditingController cC = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: tC, decoration: const InputDecoration(hintText: "Judul Catatan")),
+            const SizedBox(height: 10),
+            TextField(controller: cC, maxLines: 5, decoration: const InputDecoration(hintText: "Tulis isi catatan di sini...")),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () {
+                  _saveNote(tC.text, cC.text);
+                  Navigator.pop(context);
+                },
+                child: const Text("Simpan Catatan", style: TextStyle(color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
   }
 }

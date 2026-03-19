@@ -29,7 +29,7 @@ class FooterWidget extends StatefulWidget {
   State<FooterWidget> createState() => _FooterWidgetState();
 
   // Fungsi-fungsi pembantu tampilan yang dipanggil dari main.dart
-  Widget buildJelajah() => _buildJelajahContent();
+  Widget buildCatatan({required Widget child}) => _buildCatatanWrapper(child);
   Widget buildSetelan() => _buildSetelanContent();
   Widget buildTayubMode() => _TayubModeView(
     onTayubSubmit: onTayubSubmit, 
@@ -37,43 +37,14 @@ class FooterWidget extends StatefulWidget {
     sitemap: sitemap
   );
 
- Widget _buildJelajahContent() {
-    return Container( 
-      width: double.infinity,
-      height: double.infinity,
-      color: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Eksplorasi Notasi", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 5),
-            const Text("Cari berdasarkan kategori gending", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 25),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: gendingLabels.map((label) {
-                return InkWell(
-                  onTap: () => onLabelTap(label),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isDarkMode ? Colors.white10 : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: isDarkMode ? Colors.white24 : Colors.black12),
-                    ),
-                    child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+Widget _buildCatatanWrapper(Widget child) {
+  return Container( 
+    width: double.infinity,
+    height: double.infinity,
+    color: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+    child: child, // Di sini nanti isi daftar catatannya tampil
+  );
+}
 
   Widget _buildSetelanContent() {
     return ListView(
@@ -93,14 +64,14 @@ class FooterWidget extends StatefulWidget {
         ListTile(
           leading: const Icon(Icons.info_outline),
           title: const Text("Tentang Sinsangnot"),
-          onTap: () => showInternalPage("Tentang", "Digitalisasi notasi gending Jawa untuk memudahkan para seniman dan akademisi."),
+          onTap: () => showInternalPage("Tentang", "Sinsangnot adalah aplikasi koleksi notasi gending Jawa yang dikembangkan untuk memudahkan akses dan eksplorasi musik tradisional. Aplikasi ini bersifat open-source dan terus dikembangkan dengan dukungan komunitas. Semua data notasi diambil dari sumber yang sah dan dihormati hak ciptanya. Pembuatan aplikasi ini dilakukan dengan tujuan untuk melestarikan dan memperluas akses terhadap warisan budaya musik Jawa. Dengan alat yang seadanya saya sebagai Developer apk sangat berterimikasih atas penggunaan aplikasi yang sederhana ini. Komentar serta masukan anda sangat bermanfaat bagi kami dan Terima kasih telah menggunakan Sinsangnot!"),
         ),
         ListTile(
           leading: const Icon(Icons.favorite, color: Colors.red),
           title: const Text("Dukungan Kreator"),
-          subtitle: const Text("Donasi untuk pengembangan aplikasi"),
+          subtitle: const Text("Donasi seiklasnya lewat aplikasi Dana tanpa minimal transaksi"),
           onTap: () async {
-            final Uri url = Uri.parse("https://link.dana.id/qr/CONTOH_ID");
+            final Uri url = Uri.parse("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526");
             if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
           },
         ),
@@ -121,7 +92,7 @@ class _FooterWidgetState extends State<FooterWidget> {
       onTap: widget.onTabTap,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
-        BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Jelajah'),
+        BottomNavigationBarItem(icon: Icon(Icons.note_alt_outlined), label: 'Catatan'),
         BottomNavigationBarItem(icon: Icon(Icons.library_music, size: 30), label: 'Tayub'),
         BottomNavigationBarItem(icon: Icon(Icons.download_done), label: 'Koleksi'),
         BottomNavigationBarItem(icon: Icon(Icons.menu), label: 'Menu'),
