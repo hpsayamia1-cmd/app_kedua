@@ -15,8 +15,8 @@ jobs:
           
       - run: flutter pub get
       
-      # Perintah ini akan memecah APK menjadi ukuran yang jauh lebih kecil
-      - run: flutter build apk --release --split-per-abi
+# Perintah ini mengacak kode (obfuscate) dan mengecilkan ukuran APK
+      - run: flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols --split-per-abi
       
       - name: Upload APK
         uses: actions/upload-artifact@v4

@@ -34,20 +34,25 @@ class ArticleReader extends StatefulWidget {
 }
 
 class _ArticleReaderState extends State<ArticleReader> {
-  late bool _localIsSaved;
-
+late bool _localIsSaved;
+bool _isAdsShowing = false;
 void _showAdsThenDownload() {
+  if (_isAdsShowing) return;
+  _isAdsShowing = true;
     UnityAds.showVideoAd(
       placementId: 'Rewarded_Android',
       onComplete: (placementId) {
+        _isAdsShowing = false;
         _saveToOffline(context, widget.article!);
         UnityAds.load(placementId: 'Rewarded_Android');
       },
       onFailed: (placementId, error, message) {
+        _isAdsShowing = false;
         _saveToOffline(context, widget.article!);
         UnityAds.load(placementId: 'Rewarded_Android');
       },
       onSkipped: (placementId) {
+        _isAdsShowing = false;
         _saveToOffline(context, widget.article!);
         UnityAds.load(placementId: 'Rewarded_Android');
       },
