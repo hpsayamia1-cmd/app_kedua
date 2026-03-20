@@ -12,12 +12,22 @@ import 'package:unity_ads_plugin/unity_ads_plugin.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   await UnityAds.init(
     gameId: '6070447',
-    testMode: true, // Biar aman saat kita tes download sendiri
-    onComplete: () => print('Unity Ads: Siap Tayang!'),
-    onFailed: (error, message) => print('Unity Ads Gagal: $message'),
+    testMode: true, 
+    onComplete: () {
+      print('Unity Ads: Siap!');
+      // Panggil load di sini agar video didownload saat aplikasi dibuka
+      UnityAds.load(
+        placementId: 'Rewarded_Android',
+        onComplete: (placementId) => print('Load Berhasil: $placementId'),
+        onFailed: (placementId, error, message) => print('Load Gagal: $message'),
+      );
+    },
+    onFailed: (error, message) => print('Unity Ads Gagal: $message'), // Tambahkan ini biar komplit
   );
+
   runApp(PuskarajaApp());
 }
 
