@@ -37,29 +37,19 @@ class _ArticleReaderState extends State<ArticleReader> {
   late bool _localIsSaved;
 
 void _showAdsThenDownload() {
-    // 1. Cek apakah iklan sudah siap?
     UnityAds.showVideoAd(
       placementId: 'Rewarded_Android',
       onComplete: (placementId) {
         _saveToOffline(context, widget.article!);
+        UnityAds.load(placementId: 'Rewarded_Android');
       },
       onFailed: (placementId, error, message) {
-        // Jika gagal karena belum "load", kita pancing load lagi buat klik berikutnya
-        UnityAds.load(
-          placementId: 'Rewarded_Android',
-          onComplete: (id) => print("Iklan siap buat klik nanti"),
-          onFailed: (id, err, msg) => print("Gagal load: $msg"),
-        );
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Iklan belum siap, silakan klik sekali lagi atau tunggu 5 detik.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        
-        // Tetap izinkan simpan agar user tidak macet
         _saveToOffline(context, widget.article!);
+        UnityAds.load(placementId: 'Rewarded_Android');
+      },
+      onSkipped: (placementId) {
+        _saveToOffline(context, widget.article!);
+        UnityAds.load(placementId: 'Rewarded_Android');
       },
     );
   }
