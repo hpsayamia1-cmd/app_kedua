@@ -40,10 +40,20 @@ void _showAdsThenDownload() {
     UnityAds.showVideoAd(
       placementId: 'Rewarded_Android',
       onComplete: (placementId) {
-        // Iklan selesai, langsung jalankan fungsi simpan Mas
+        // Iklan selesai, langsung jalankan fungsi simpan
         _saveToOffline(context, widget.article!);
       },
       onFailed: (placementId, error, message) {
+        // --- INI TAMBAHANNYA BIAR ERROR KELIHATAN DI HP ---
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Iklan Gagal: $message'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        // ------------------------------------------------
+        
         // Iklan gagal (misal sinyal buruk), tetap izinkan simpan
         _saveToOffline(context, widget.article!);
       },
