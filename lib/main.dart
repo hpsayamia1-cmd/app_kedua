@@ -12,22 +12,6 @@ import 'package:unity_ads_plugin/unity_ads_plugin.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  await UnityAds.init(
-    gameId: '6070447',
-    testMode: true, 
-    onComplete: () {
-      print('Unity Ads: Siap!');
-      // Panggil load di sini agar video didownload saat aplikasi dibuka
-      UnityAds.load(
-        placementId: 'Rewarded_Android',
-        onComplete: (placementId) => print('Load Berhasil: $placementId'),
-        onFailed: (placementId, error, message) => print('Load Gagal: $message'),
-      );
-    },
-    onFailed: (error, message) => print('Unity Ads Gagal: $message'), // Tambahkan ini biar komplit
-  );
-
   runApp(PuskarajaApp());
 }
 
@@ -43,6 +27,19 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
   void initState() {
     super.initState();
     _loadThemeSettings();
+    _initUnityAds();
+  }
+  Future<void> _initUnityAds() async {
+    await UnityAds.init(
+      gameId: '6070447',
+      testMode: true, // Ubah ke false kalau ads.txt di Unity sudah hijau
+      onComplete: () {
+        print('Unity Ads: Siap di dalam State!');
+        // Langsung siapkan video pertama agar saat diklik download tidak loading lama
+        UnityAds.load(placementId: 'Rewarded_Android');
+      },
+      onFailed: (error, message) => print('Unity Ads Gagal: $message'),
+    );
   }
 
   Future<void> _loadThemeSettings() async {
