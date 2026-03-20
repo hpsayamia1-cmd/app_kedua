@@ -32,7 +32,7 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
   Future<void> _initUnityAds() async {
     await UnityAds.init(
       gameId: '6070447',
-      testMode: true, // Ubah ke false kalau ads.txt di Unity sudah hijau
+      testMode: false,
       onComplete: () {
         print('Unity Ads: Siap di dalam State!');
         // Langsung siapkan video pertama agar saat diklik download tidak loading lama
