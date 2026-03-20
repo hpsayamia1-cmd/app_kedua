@@ -1,4 +1,4 @@
-package com.example.app_kedua
+package com.sinsangnot.app
 
 import io.flutter.embedding.android.FlutterActivity
 

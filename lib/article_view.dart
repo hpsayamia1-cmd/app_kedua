@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:sqflite/sqflite.dart'; 
 import 'main.dart'; 
 import 'database_helper.dart';
+import 'package:unity_ads_plugin/unity_ads_plugin.dart';
 
 class ArticleReader extends StatefulWidget {
   final Article? article;
@@ -34,6 +35,20 @@ class ArticleReader extends StatefulWidget {
 
 class _ArticleReaderState extends State<ArticleReader> {
   late bool _localIsSaved;
+
+void _showAdsThenDownload() {
+    UnityAds.showVideoAd(
+      placementId: 'Rewarded_Android',
+      onComplete: (placementId) {
+        // Iklan selesai, langsung jalankan fungsi simpan Mas
+        _saveToOffline(context, widget.article!);
+      },
+      onFailed: (placementId, error, message) {
+        // Iklan gagal (misal sinyal buruk), tetap izinkan simpan
+        _saveToOffline(context, widget.article!);
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -75,7 +90,7 @@ class _ArticleReaderState extends State<ArticleReader> {
               child: FloatingActionButton(
                 elevation: 6,
                 backgroundColor: _localIsSaved ? Colors.green : Colors.red,
-                onPressed: _localIsSaved ? null : () => _saveToOffline(context, widget.article!),
+                onPressed: _localIsSaved ? null : () => _showAdsThenDownload(),
                 child: Icon(
                   _localIsSaved ? Icons.check : Icons.download_for_offline,
                   color: Colors.white,

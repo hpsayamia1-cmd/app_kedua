@@ -8,9 +8,16 @@ import 'blogger_service.dart';
 import 'header_widget.dart';
 import 'footer_widget.dart';
 import 'dart:io';
+import 'package:unity_ads_plugin/unity_ads_plugin.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await UnityAds.init(
+    gameId: '6070447',
+    testMode: true, // Biar aman saat kita tes download sendiri
+    onComplete: () => print('Unity Ads: Siap Tayang!'),
+    onFailed: (error, message) => print('Unity Ads Gagal: $message'),
+  );
   runApp(PuskarajaApp());
 }
 
