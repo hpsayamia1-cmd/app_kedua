@@ -37,6 +37,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.unity3d.services.ads.adunit.AdUnitActivity"
+            android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="" />
+
+        <activity
+            android:name="com.unity3d.services.ads.adunit.AdUnitSoftwareActivity"
+            android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:hardwareAccelerated="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="" />
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
