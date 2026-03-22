@@ -47,7 +47,7 @@ void _showAdsThenDownload() async {
     placementId: 'Interstitial_Android',
     onComplete: (placementId) {
       if (mounted) Navigator.of(context).pop();
-      UnityAds.showInterstitialAd(
+      UnityAds.showVideoAd(
         placementId: placementId,
         onComplete: (id) {
           _isAdsShowing = false;
