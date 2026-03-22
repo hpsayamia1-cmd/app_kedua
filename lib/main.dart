@@ -33,7 +33,7 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
 Future<void> _initUnityAds() async {
   await UnityAds.init(
     gameId: '6070447',
-    testMode: true,
+    testMode: false,
     onComplete: () {
       debugPrint('semua siap!..'); 
     },
@@ -744,7 +744,7 @@ Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
       child: CircularProgressIndicator(color: Colors.red),
     );
   }
-  if (list.isEmpty) return Center(child: Text(isOfflineTab ? "Belum ada koleksi." : "Hasil tidak ditemukan."));
+  if (list.isEmpty) return Center(child: Text(isOfflineTab ? "Silahkan download notasi untuk ditambahkan ke koleksi. Anda tetap bisa mengakses koleksi offline kapan saja." : "Hasil tidak ditemukan."));
 
   return Column(
     children: [
