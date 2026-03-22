@@ -275,7 +275,6 @@ void _showAdsThenDownload() async {
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-    if (context.mounted) Navigator.of(context).pop();
 
       setState(() => _localIsSaved = true);
       widget.onDownload();
@@ -287,7 +286,6 @@ void _showAdsThenDownload() async {
         ),
       );
     } catch (e) {
-      if (context.mounted) Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Gagal simpan: $e"), backgroundColor: Colors.red),
       );
