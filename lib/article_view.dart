@@ -36,28 +36,36 @@ class ArticleReader extends StatefulWidget {
 class _ArticleReaderState extends State<ArticleReader> {
 late bool _localIsSaved;
 bool _isAdsShowing = false;
-void _showAdsThenDownload() {
+
+void _showAdsThenDownload() async {
   if (_isAdsShowing) return;
-  _isAdsShowing = true;
-    UnityAds.showVideoAd(
-      placementId: 'Rewarded_Android',
-      onComplete: (placementId) {
-        _isAdsShowing = false;
-        _saveToOffline(context, widget.article!);
-        UnityAds.load(placementId: 'Rewarded_Android');
-      },
-      onFailed: (placementId, error, message) {
-        _isAdsShowing = false;
-        _saveToOffline(context, widget.article!);
-        UnityAds.load(placementId: 'Rewarded_Android');
-      },
-      onSkipped: (placementId) {
-        _isAdsShowing = false;
-        _saveToOffline(context, widget.article!);
-        UnityAds.load(placementId: 'Rewarded_Android');
-      },
-    );
-  }
+  setState(() {
+    _isAdsShowing = true;
+  });
+  _showLoading(context);
+  await UnityAds.load(
+    placementId: 'Interstitial_Android',
+    onComplete: (placementId) {
+      if (mounted) Navigator.of(context).pop();
+      UnityAds.showInterstitialAd(
+        placementId: placementId,
+        onComplete: (id) {
+          _isAdsShowing = false;
+          _saveToOffline(context, widget.article!);
+        },
+        onFailed: (id, error, message) {
+          _isAdsShowing = false;
+          _saveToOffline(context, widget.article!);
+        },
+      );
+    },
+    onFailed: (placementId, error, message) {
+      if (mounted) Navigator.of(context).pop();
+      _isAdsShowing = false;
+      _saveToOffline(context, widget.article!);
+    },
+  );
+}
 
   @override
   void initState() {
@@ -235,7 +243,6 @@ void _showAdsThenDownload() {
   }
 
   Future<void> _saveToOffline(BuildContext context, Article art) async {
-    _showLoading(context);
     try {
       var data = _parseContent(art.content);
       String imageUrl = data['image'] ?? "";

@@ -29,18 +29,17 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
     _loadThemeSettings();
     _initUnityAds();
   }
-  Future<void> _initUnityAds() async {
-    await UnityAds.init(
-      gameId: '6070447',
-      testMode: false,
-      onComplete: () {
-        print('Unity Ads: Siap di dalam State!');
-        // Langsung siapkan video pertama agar saat diklik download tidak loading lama
-        UnityAds.load(placementId: 'Rewarded_Android');
-      },
-      onFailed: (error, message) => print('Unity Ads Gagal: $message'),
-    );
-  }
+
+Future<void> _initUnityAds() async {
+  await UnityAds.init(
+    gameId: '6070447',
+    testMode: true,
+    onComplete: () {
+      debugPrint('semua siap!..'); 
+    },
+    onFailed: (error, message) => debugPrint('gagal load!...: $message'),
+  );
+}
 
   Future<void> _loadThemeSettings() async {
     final prefs = await SharedPreferences.getInstance();
