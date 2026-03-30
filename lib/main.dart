@@ -280,7 +280,7 @@ Future<void> _fetchSitemap() async {
 Future<void> _fetchInitialFeed() async {
     setState(() { isInitialLoading = true; isOffline = false; _currentStartIndex = 1; });
     try {
-      final data = await _bloggerService.fetchFeed(startIndex: 1, maxResults: 8);
+      final data = await _bloggerService.fetchFeed(startIndex: 1, maxResults: 15);
       if (data.isNotEmpty) {
         setState(() {
           // OPTIMASI: Proses data secara massal agar loading lebih cepat
@@ -308,7 +308,7 @@ Future<void> _fetchInitialFeed() async {
   Future<void> _fetchMoreFeed() async {
     if (isMoreLoading) return;
     setState(() => isMoreLoading = true);
-    _currentStartIndex += 8;
+    _currentStartIndex = feedArticles.length + 1;
     try {
       final data = await _bloggerService.fetchFeed(startIndex: _currentStartIndex, maxResults: 8);
       if (data.isNotEmpty) {
@@ -776,10 +776,18 @@ Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
           physics: const AlwaysScrollableScrollPhysics(),
           controller: isOfflineTab ? null : _scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          itemCount: list.length + (isMoreLoading ? 1 : 0),
+          itemCount: list.length + 1,
           itemBuilder: (context, index) {
-            if (index == list.length) return const Center(child: CircularProgressIndicator(color: Colors.red));
-            final a = list[index];
+          if (index == list.length) {
+          if (isMoreLoading) {
+          return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: Center(child: CircularProgressIndicator(color: Colors.red)),
+      );
+    }
+    return const SizedBox(height: 50); 
+  }
+  final a = list[index];
 
             return GestureDetector(
               onTap: () => _openArticle(a),
