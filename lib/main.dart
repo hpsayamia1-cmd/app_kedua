@@ -502,10 +502,37 @@ Future<void> _loadNotes() async {
     });
   }
 
-  Future<void> _deleteNote(int id) async {
-    final db = await DatabaseHelper.getDatabase();
-    await db.delete('notes', where: 'id = ?', whereArgs: [id]);
-    _loadNotes();
+void _deleteNote(int id) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
+        title: const Text("Hapus Catatan?", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text("Apakah Anda yakin ingin menghapus catatan ini?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text("Batal", style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final db = await DatabaseHelper.getDatabase();
+              await db.delete('notes', where: 'id = ?', whereArgs: [id]);
+              if (mounted) Navigator.pop(c);
+              _loadNotes();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Catatan berhasil dihapus"),
+                  backgroundColor: Colors.redAccent,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text("Ya, Hapus", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _resetSearch() { 
