@@ -103,6 +103,7 @@ class RootNavigation extends StatefulWidget {
 class _RootNavigationState extends State<RootNavigation> {
   int _currentTab = 0;
   int? _previousTab;
+  int _sourceTab = 0;
   Article? selectedArticle;
   List<Article>? dualArticles;
   
@@ -123,6 +124,7 @@ class _RootNavigationState extends State<RootNavigation> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final BloggerService _bloggerService = BloggerService();
+  final FocusNode _noteSearchFocusNode = FocusNode();
   final List<String> gendingLabels = ["Tayub", "Ladrang", "Slendro", "Pelog", "Ketawang", "Ayak"];
 
   @override
@@ -169,11 +171,12 @@ class _RootNavigationState extends State<RootNavigation> {
 
 @override
 void dispose() {
-  _networkTimer?.cancel(); // Menghentikan timer otomatis saat keluar
+  _networkTimer?.cancel();
   _scrollController.dispose();
   _debounce?.cancel();
-  _searchController.dispose(); // Tambahkan ini juga biar bersih
-  _searchFocusNode.dispose();  // Tambahkan ini juga
+  _searchController.dispose();
+  _searchFocusNode.dispose();
+  _noteSearchFocusNode.dispose();
   super.dispose();
 }
 
@@ -366,6 +369,7 @@ void _searchOfflineLocally(String q) {
 
 void _openArticle(Article a) {
     setState(() {
+      _sourceTab = _currentTab;
       selectedArticle = Article(
         id: a.id,
         title: a.title,
@@ -384,6 +388,7 @@ void _openArticle(Article a) {
   // Fungsi khusus untuk Mode Tayub (Membuka 2 Artikel Sekaligus)
   void _openDualArticle(Article a1, Article a2) {
     setState(() {
+      _sourceTab = _currentTab;
       dualArticles = [a1, a2];
       selectedArticle = null;
     });
@@ -624,9 +629,16 @@ final header = HeaderWidget(
     );
 
 return WillPopScope(
-onWillPop: () async {
-  if (FocusScope.of(context).hasFocus) {
-    FocusScope.of(context).unfocus();
+ onWillPop: () async {
+  if (_searchFocusNode.hasFocus || _noteSearchFocusNode.hasFocus) {
+    _searchFocusNode.unfocus();
+    _noteSearchFocusNode.unfocus();
+    return false;
+  }
+  if ((selectedArticle != null || dualArticles != null) && _currentTab != _sourceTab) {
+    setState(() {
+      _currentTab = _sourceTab;
+    });
     return false;
   }
   if (selectedArticle != null || dualArticles != null) {
@@ -648,7 +660,9 @@ onWillPop: () async {
     return false;
   }
   if (_currentTab != 0) {
-    setState(() { _currentTab = 0; });
+    setState(() {
+      _currentTab = 0;
+    });
     return false;
   }
   bool? exitApp = await showDialog(
@@ -718,8 +732,8 @@ bottomNavigationBar: FooterWidget(
       : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
 
 onTabTap: (i) { 
-  if (i == 0) {
-    if (_currentTab == 0) {
+  if (i == _currentTab) {
+    if (i == 0) {
       if (selectedArticle != null || dualArticles != null) {
         setState(() { 
           selectedArticle = null; 
@@ -728,19 +742,21 @@ onTabTap: (i) {
       } else {
         _resetSearch();
       }
-    } else {
-      setState(() { _currentTab = 0; });
     }
-  } else {
-    _resetSearch(); 
-    setState(() { 
-      _previousTab = _currentTab;
-      _currentTab = i; 
-    }); 
-    if (i == 1) _loadNotes(); 
-    if (i == 3) _loadOfflineData(); 
+    return;
   }
+  setState(() { 
+    _previousTab = _currentTab;
+    _currentTab = i; 
+    if (selectedArticle == null && dualArticles == null) {
+      _sourceTab = i; 
+    }
+  }); 
+
+  if (i == 1) _loadNotes(); 
+  if (i == 3) _loadOfflineData(); 
 },
+
   onThemeChanged: widget.updateTheme,
   showInternalPage: _showInternalPage,
   gendingLabels: gendingLabels,
@@ -951,24 +967,26 @@ Widget _buildNotesUI() {
           // --- KOLOM PENCARIAN KHUSUS CATATAN (DI BAWAH JUDUL) ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            child: TextField(
-  controller: _noteSearchController,
-  onChanged: _filterNotes,
-  textInputAction: TextInputAction.search,
-  onSubmitted: (_) => FocusScope.of(context).unfocus(),
-  decoration: InputDecoration(
+         child: 
+         TextField(
+              controller: _noteSearchController,
+              focusNode: _noteSearchFocusNode,
+              onChanged: _filterNotes,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _noteSearchFocusNode.unfocus(),
+    decoration: InputDecoration(
     hintText: "Cari di catatan gending...",
     prefixIcon: const Icon(Icons.search, size: 20),
     suffixIcon: _noteSearchController.text.isNotEmpty 
       ? IconButton(
           icon: const Icon(Icons.clear, size: 20),
           onPressed: () {
-            setState(() {
-              _noteSearchController.clear();
-              _filterNotes("");
-              FocusScope.of(context).unfocus();
-            });
-          },
+          setState(() {
+           _noteSearchController.clear();
+           _filterNotes("");
+           FocusManager.instance.primaryFocus?.unfocus(); 
+  });
+},
         )
       : null,
     filled: true,

@@ -89,8 +89,8 @@ Widget _buildCatatanWrapper(Widget child) {
         ),
         ListTile(
           leading: const Icon(Icons.help_center_outlined, color: Colors.green),
-          title: const Text("Petunjuk Penggunaan"),
-          subtitle: const Text("panduan aplikasi & Cara simpan offline"),
+          title: const Text("Petunjuk Penggunaan & Update"),
+          subtitle: const Text("panduan aplikasi, Cara simpan offline & unduh aplikasi versi terbaru."),
           onTap: () async {
             final Uri url = Uri.parse("https://sinsangnot.blogspot.com/p/download-aplikasi-notasi-gamelan.html");
             if (await canLaunchUrl(url)) {
