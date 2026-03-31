@@ -75,7 +75,10 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
                           ? IconButton(
                               padding: EdgeInsets.zero,
                               icon: const Icon(Icons.clear, size: 16),
-                              onPressed: onResetSearch,
+                              onPressed: () {
+                              searchFocusNode.unfocus(); 
+                              onResetSearch();
+                              },
                             )
                           : const SizedBox.shrink();
                     },

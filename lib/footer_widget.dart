@@ -98,6 +98,31 @@ Widget _buildCatatanWrapper(Widget child) {
             }
           },
         ),
+        const SizedBox(height: 40),
+        Center(
+          child: Column(
+            children: [
+              Text(
+                "SinsangNot Versi 1.0.0",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white30 : Colors.grey[400],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Digital Gamelan Library",
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1.2,
+                  color: isDarkMode ? Colors.white10 : Colors.grey[300],
+                ),
+              ),
+              const SizedBox(height: 30),
+            ],
+          ),
+        ),
       ],
     );
   }

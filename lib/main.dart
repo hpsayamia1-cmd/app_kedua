@@ -33,7 +33,7 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
 Future<void> _initUnityAds() async {
   await UnityAds.init(
     gameId: '6070447',
-    testMode: false,
+    testMode: true,
     onComplete: () {
       debugPrint('semua siap!..'); 
     },
@@ -624,27 +624,49 @@ final header = HeaderWidget(
     );
 
 return WillPopScope(
-onWillPop: () async { 
-  if (_currentTab != 0 && (selectedArticle != null || dualArticles != null)) { 
-    setState(() { 
-      _currentTab = 0;
-    }); 
-    return false; 
-  } 
-
-  if (selectedArticle != null || dualArticles != null) { 
-    setState(() { 
+onWillPop: () async {
+  if (FocusScope.of(context).hasFocus) {
+    FocusScope.of(context).unfocus();
+    return false;
+  }
+  if (selectedArticle != null || dualArticles != null) {
+    setState(() {
       selectedArticle = null;
-      dualArticles = null; 
-    }); 
-    return false; 
-  } 
-  if (_currentTab != 0) { 
-    setState(() { _currentTab = 0; _resetSearch(); }); 
-    return false; 
-  } 
-
-  return true;
+      dualArticles = null;
+    });
+    return false;
+  }
+  if (_currentTab == 1 && _noteSearchController.text.isNotEmpty) {
+    setState(() {
+      _noteSearchController.clear();
+      _filterNotes("");
+    });
+    return false;
+  }
+  if (_currentTab == 0 && (_searchController.text.isNotEmpty || searchResults.isNotEmpty)) {
+    _resetSearch();
+    return false;
+  }
+  if (_currentTab != 0) {
+    setState(() { _currentTab = 0; });
+    return false;
+  }
+  bool? exitApp = await showDialog(
+    context: context,
+    builder: (c) => AlertDialog(
+      backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
+      title: const Text("Keluar Aplikasi?"),
+      content: const Text("Apakah Anda ingin menutup Sinsangnot?"),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Batal")),
+        TextButton(
+          onPressed: () => Navigator.pop(c, true), 
+          child: const Text("Ya, Keluar", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+        ),
+      ],
+    ),
+  );
+  return exitApp ?? false;
 },
       child: Scaffold(
         appBar: header,
@@ -696,13 +718,28 @@ bottomNavigationBar: FooterWidget(
       : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
 
 onTabTap: (i) { 
-  _resetSearch(); 
-  setState(() { 
-    _previousTab = _currentTab;
-    _currentTab = i; 
-  }); 
-  if (i == 1) _loadNotes(); 
-  if (i == 3) _loadOfflineData(); 
+  if (i == 0) {
+    if (_currentTab == 0) {
+      if (selectedArticle != null || dualArticles != null) {
+        setState(() { 
+          selectedArticle = null; 
+          dualArticles = null; 
+        });
+      } else {
+        _resetSearch();
+      }
+    } else {
+      setState(() { _currentTab = 0; });
+    }
+  } else {
+    _resetSearch(); 
+    setState(() { 
+      _previousTab = _currentTab;
+      _currentTab = i; 
+    }); 
+    if (i == 1) _loadNotes(); 
+    if (i == 3) _loadOfflineData(); 
+  }
 },
   onThemeChanged: widget.updateTheme,
   showInternalPage: _showInternalPage,
@@ -800,6 +837,7 @@ Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
       // DAFTAR GENDING 1 KOLOM (FLEKSIBEL)
       Expanded(
         child: ListView.builder(
+          key: PageStorageKey(isOfflineTab ? 'offline_list' : 'beranda_list'),
           physics: const AlwaysScrollableScrollPhysics(),
           controller: isOfflineTab ? null : _scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -914,17 +952,31 @@ Widget _buildNotesUI() {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
             child: TextField(
-              controller: _noteSearchController,
-              onChanged: _filterNotes, // Panggil fungsi filter setiap kali mengetik
-              decoration: InputDecoration(
-                hintText: "Cari di catatan gending...",
-                prefixIcon: const Icon(Icons.search, size: 20),
-                filled: true,
-                fillColor: widget.isDarkMode ? Colors.white10 : Colors.grey[100],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-              ),
-            ),
+  controller: _noteSearchController,
+  onChanged: _filterNotes,
+  textInputAction: TextInputAction.search,
+  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+  decoration: InputDecoration(
+    hintText: "Cari di catatan gending...",
+    prefixIcon: const Icon(Icons.search, size: 20),
+    suffixIcon: _noteSearchController.text.isNotEmpty 
+      ? IconButton(
+          icon: const Icon(Icons.clear, size: 20),
+          onPressed: () {
+            setState(() {
+              _noteSearchController.clear();
+              _filterNotes("");
+              FocusScope.of(context).unfocus();
+            });
+          },
+        )
+      : null,
+    filled: true,
+    fillColor: widget.isDarkMode ? Colors.white10 : Colors.grey[100],
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+  ),
+),
           ),
 
           Expanded(

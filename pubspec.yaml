@@ -51,9 +51,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo.png"
-  adaptive_icon_background: "#010A01" # Warna background hijau gelap kamu
-  adaptive_icon_foreground: "assets/logo1.png"
+  image_path: "assets/logo_ikon.png"
+  adaptive_icon_background: "assets/transparan_bg.png"
+  adaptive_icon_foreground: "assets/logo_ikon.png"
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

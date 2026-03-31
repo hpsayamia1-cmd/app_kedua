@@ -206,8 +206,8 @@ void _showAdsThenDownload() async {
       child: Text(
         lirik,
         style: TextStyle(
-          fontSize: 15,
-          height: 1.6,
+          fontSize: 18,
+          height: 1.5,
           fontFamily: 'monospace', 
           // PERBAIKAN: Pakai widget.isDarkMode
           color: widget.isDarkMode ? Colors.white70 : Colors.black87,
