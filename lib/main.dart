@@ -368,6 +368,7 @@ void _searchOfflineLocally(String q) {
   }
 
 void _openArticle(Article a) {
+    _searchFocusNode.unfocus();
     setState(() {
       _sourceTab = _currentTab;
       selectedArticle = Article(
@@ -381,7 +382,6 @@ void _openArticle(Article a) {
         localImagePath: a.localImagePath,
       );
       dualArticles = null;
-      _currentTab = 0;
     });
   }
 
@@ -424,8 +424,7 @@ Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) a
       if (a1 != null && a2 != null) {
         setState(() {
           dualArticles = [a1!, a2!];
-          selectedArticle = null;
-          _currentTab = 0; // Pindah ke home untuk melihat notasi
+          selectedArticle = null;         
         });
       }
     } catch (e) {
@@ -628,143 +627,139 @@ final header = HeaderWidget(
       onLogoTap: () { _resetSearch(); setState(() { _currentTab = 0; selectedArticle = null; dualArticles = null; }); },
     );
 
-return WillPopScope(
- onWillPop: () async {
-  if (_searchFocusNode.hasFocus || _noteSearchFocusNode.hasFocus) {
-    _searchFocusNode.unfocus();
-    _noteSearchFocusNode.unfocus();
-    return false;
-  }
-  if ((selectedArticle != null || dualArticles != null) && _currentTab != _sourceTab) {
-    setState(() {
-      _currentTab = _sourceTab;
-    });
-    return false;
-  }
-  if (selectedArticle != null || dualArticles != null) {
-    setState(() {
-      selectedArticle = null;
-      dualArticles = null;
-    });
-    return false;
-  }
-  if (_currentTab == 1 && _noteSearchController.text.isNotEmpty) {
-    setState(() {
-      _noteSearchController.clear();
-      _filterNotes("");
-    });
-    return false;
-  }
-  if (_currentTab == 0 && (_searchController.text.isNotEmpty || searchResults.isNotEmpty)) {
-    _resetSearch();
-    return false;
-  }
-  if (_currentTab != 0) {
-    setState(() {
-      _currentTab = 0;
-    });
-    return false;
-  }
-  bool? exitApp = await showDialog(
-    context: context,
-    builder: (c) => AlertDialog(
-      backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
-      title: const Text("Keluar Aplikasi?"),
-      content: const Text("Apakah Anda ingin menutup Sinsangnot?"),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Batal")),
-        TextButton(
-          onPressed: () => Navigator.pop(c, true), 
-          child: const Text("Ya, Keluar", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+return GestureDetector(
+  onTap: () {
+    FocusScope.of(context).unfocus();
+  },
+  child: WillPopScope(
+    onWillPop: () async {
+      FocusScope.of(context).unfocus();
+      if (_searchFocusNode.hasFocus || _noteSearchFocusNode.hasFocus) {
+        _searchFocusNode.unfocus();
+        _noteSearchFocusNode.unfocus();
+        return false; 
+      }
+      if ((selectedArticle != null || dualArticles != null) && _currentTab != _sourceTab) {
+        setState(() {
+          _currentTab = _sourceTab;
+        });
+        return false;
+      }
+      if (selectedArticle != null || dualArticles != null) {
+        setState(() {
+          selectedArticle = null;
+          dualArticles = null;
+        });
+        return false;
+      }
+      if (_currentTab == 1 && _noteSearchController.text.isNotEmpty) {
+        setState(() {
+          _noteSearchController.clear();
+          _filterNotes("");
+        });
+        return false;
+      }
+      if (_currentTab == 0 && (_searchController.text.isNotEmpty || searchResults.isNotEmpty)) {
+        _resetSearch();
+        return false;
+      }
+      if (_currentTab != 0) {
+        setState(() {
+          _currentTab = 0;
+        });
+        return false;
+      }
+      bool? exitApp = await showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+          backgroundColor: widget.isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
+          title: const Text("Keluar Aplikasi?"),
+          content: const Text("Apakah Anda ingin menutup SinsangNot?"),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Batal")),
+            TextButton(
+              onPressed: () => Navigator.pop(c, true), 
+              child: const Text("Ya, Keluar", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+            ),
+          ],
         ),
-      ],
-    ),
-  );
-  return exitApp ?? false;
-},
-      child: Scaffold(
-        appBar: header,
-body: Stack(
+      );
+      return exitApp ?? false;
+    },
+    child: Scaffold(
+      appBar: header,
+      body: Stack(
         children: [
-          if (selectedArticle == null && dualArticles == null)
-            RefreshIndicator(
-              color: Colors.red, 
-              onRefresh: _fetchInitialFeed, 
-              child: _buildTabContent(),
+          RefreshIndicator(
+            color: Colors.red, 
+            onRefresh: _fetchInitialFeed, 
+            child: _buildTabContent(),
+          ),
+          if (selectedArticle != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 60),
+              child: ArticleReader(
+                article: selectedArticle!, 
+                isDarkMode: widget.isDarkMode, 
+                isSaved: _isDownloaded(selectedArticle!.id), 
+                onDownload: () async { await _loadOfflineData(); },
+                onClose: () => setState(() => selectedArticle = null),
+              ),
             ),
-
-if (selectedArticle != null)
-            ArticleReader(
-              article: selectedArticle!, 
-              isDarkMode: widget.isDarkMode, 
-              // PASTIKAN DUA BARIS INI ADA:
-              isSaved: _isDownloaded(selectedArticle!.id), 
-              onDownload: () async {
-                await _loadOfflineData();
-              },
-              onClose: () => setState(() => selectedArticle = null),
+          if (dualArticles != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 60),
+              child: ArticleReader(
+                articles: dualArticles!, 
+                isDarkMode: widget.isDarkMode, 
+                isDualMode: true,
+                isSaved: false,
+                onDownload: () {},
+                onClose: () => setState(() => dualArticles = null),
+              ),
             ),
-
-if (dualArticles != null)
-  ArticleReader(
-    articles: dualArticles!, 
-    isDarkMode: widget.isDarkMode, 
-    isDualMode: true,
-    isSaved: false, // Tambahan formal
-    onDownload: () {}, // Tambahan formal
-    onClose: () => setState(() => dualArticles = null),
-  ),
-
-          if (_currentTab != 0)
-            Container(
-              color: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-              child: _buildTabContent(),
-            ),
-            
           header.buildFloatingSuggestions(context),
         ],
       ),
-bottomNavigationBar: FooterWidget(
-  currentTab: _currentTab,
-  isDarkMode: widget.isDarkMode,
-  sitemap: sitemapSuggestions.isNotEmpty 
-      ? sitemapSuggestions 
-      : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
-
-onTabTap: (i) { 
-  if (i == _currentTab) {
-    if (i == 0) {
-      if (selectedArticle != null || dualArticles != null) {
-        setState(() { 
-          selectedArticle = null; 
-          dualArticles = null; 
-        });
-      } else {
-        _resetSearch();
-      }
-    }
-    return;
-  }
-  setState(() { 
-    _previousTab = _currentTab;
-    _currentTab = i; 
-    if (selectedArticle == null && dualArticles == null) {
-      _sourceTab = i; 
-    }
-  }); 
-
-  if (i == 1) _loadNotes(); 
-  if (i == 3) _loadOfflineData(); 
-},
-
-  onThemeChanged: widget.updateTheme,
-  showInternalPage: _showInternalPage,
-  gendingLabels: gendingLabels,
-  onLabelTap: _handleSearch,
-  onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2), 
-),
+      bottomNavigationBar: FooterWidget(
+        currentTab: _currentTab,
+        isDarkMode: widget.isDarkMode,
+        sitemap: sitemapSuggestions.isNotEmpty 
+            ? sitemapSuggestions 
+            : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
+        onTabTap: (i) { 
+          if (i == _currentTab) {
+            if (i == 0) {
+              if (selectedArticle != null || dualArticles != null) {
+                setState(() { 
+                  selectedArticle = null; 
+                  dualArticles = null; 
+                });
+              } else {
+                _resetSearch();
+              }
+            }
+            return;
+          }
+          setState(() { 
+            _previousTab = _currentTab;
+            _currentTab = i; 
+            if (selectedArticle == null && dualArticles == null) {
+              _sourceTab = i; 
+            }
+          }); 
+          if (i == 1) _loadNotes(); 
+          if (i == 3) _loadOfflineData(); 
+        },
+        onThemeChanged: widget.updateTheme,
+        showInternalPage: _showInternalPage,
+        gendingLabels: gendingLabels,
+        onLabelTap: _handleSearch,
+        onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2), 
       ),
-    );
+    ),
+  ),
+);
   }
 
 Widget _buildTabContent() {
