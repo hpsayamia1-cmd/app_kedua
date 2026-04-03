@@ -1,15 +1,26 @@
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart'; 
+import 'dart:io'; // Penting: Untuk mengecek koneksi internet asli
 
 class BloggerService {
-  // Saya sesuaikan ke URL blog baru Mas agar langsung sinkron
+  // URL blog Mas agar langsung sinkron
   final String blogUrl = "https://playertayub.blogspot.com";
+
+  // --- FUNGSI BARU: CEK KONEKSI OTOMATIS ---
+  // Fungsi ini yang tadi menyebabkan error saat build karena belum ada
+  Future<bool> checkConnection() async {
+    try {
+      // Mencoba memanggil google untuk cek jalur data internet yang aktif
+      final result = await InternetAddress.lookup('google.com').timeout(const Duration(seconds: 3));
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false; // Jika error atau timeout, dianggap offline
+    }
+  }
 
   // 1. FUNGSI AMBIL FEED (Mendukung Infinite Scroll & Full Content)
   Future<List<Map<String, dynamic>>> fetchFeed({int startIndex = 1, int maxResults = 8}) async {
     try {
-      // Menambahkan alt=json atau menggunakan atom feed default 
-      // Kita tetap gunakan default tapi pastikan konten ditarik
       final url = "$blogUrl/feeds/posts/default?start-index=$startIndex&max-results=$maxResults";
       final response = await http
           .get(Uri.parse(url))
@@ -39,7 +50,7 @@ class BloggerService {
     }
   }
 
-  // 3. FUNGSI PARSING DATA (PENTING: Sekarang mengambil konten artikel)
+  // 3. FUNGSI PARSING DATA (Mengambil konten artikel lengkap)
   List<Map<String, dynamic>> _parseAtomFeed(String xmlBody) {
     final document = XmlDocument.parse(xmlBody);
     final List<Map<String, dynamic>> posts = [];
@@ -63,7 +74,7 @@ class BloggerService {
         }
       }
 
-      // KUNCI UTAMA: Mengambil konten HTML penuh untuk diekstrak gambarnya
+      // Mengambil konten HTML penuh (untuk gambar & lirik)
       String content = "";
       var contentElements = entry.findElements('content');
       if (contentElements.isNotEmpty) {
@@ -74,7 +85,7 @@ class BloggerService {
         'title': title,
         'label': label,
         'url': link,
-        'content': content, // Sekarang konten berisi HTML (WebP + Lirik)
+        'content': content, 
       });
     }
     return posts;
