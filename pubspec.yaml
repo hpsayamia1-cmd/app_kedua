@@ -52,7 +52,7 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/logo_ikon.png"
-  adaptive_icon_background: "#F2F2F2"
+  adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/logo_ikon.png"
 
   # The "flutter_lints" package below contains a set of recommended lints to

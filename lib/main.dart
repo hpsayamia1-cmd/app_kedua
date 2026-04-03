@@ -633,6 +633,7 @@ return GestureDetector(
   },
   child: WillPopScope(
     onWillPop: () async {
+      FocusManager.instance.primaryFocus?.unfocus();
       FocusScope.of(context).unfocus();
       if (_searchFocusNode.hasFocus || _noteSearchFocusNode.hasFocus) {
         _searchFocusNode.unfocus();
@@ -688,39 +689,16 @@ return GestureDetector(
     },
     child: Scaffold(
       appBar: header,
-      body: Stack(
-        children: [
-          RefreshIndicator(
-            color: Colors.red, 
-            onRefresh: _fetchInitialFeed, 
-            child: _buildTabContent(),
-          ),
-          if (selectedArticle != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 60),
-              child: ArticleReader(
-                article: selectedArticle!, 
-                isDarkMode: widget.isDarkMode, 
-                isSaved: _isDownloaded(selectedArticle!.id), 
-                onDownload: () async { await _loadOfflineData(); },
-                onClose: () => setState(() => selectedArticle = null),
-              ),
-            ),
-          if (dualArticles != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 60),
-              child: ArticleReader(
-                articles: dualArticles!, 
-                isDarkMode: widget.isDarkMode, 
-                isDualMode: true,
-                isSaved: false,
-                onDownload: () {},
-                onClose: () => setState(() => dualArticles = null),
-              ),
-            ),
-          header.buildFloatingSuggestions(context),
-        ],
-      ),
+body: Stack(
+  children: [
+    RefreshIndicator(
+      color: Colors.red, 
+      onRefresh: _fetchInitialFeed, 
+      child: _buildTabContent(), 
+    ),
+    header.buildFloatingSuggestions(context),
+  ],
+),
       bottomNavigationBar: FooterWidget(
         currentTab: _currentTab,
         isDarkMode: widget.isDarkMode,
@@ -728,29 +706,37 @@ return GestureDetector(
             ? sitemapSuggestions 
             : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
         onTabTap: (i) { 
-          if (i == _currentTab) {
-            if (i == 0) {
-              if (selectedArticle != null || dualArticles != null) {
-                setState(() { 
-                  selectedArticle = null; 
-                  dualArticles = null; 
-                });
-              } else {
-                _resetSearch();
-              }
-            }
-            return;
-          }
-          setState(() { 
-            _previousTab = _currentTab;
-            _currentTab = i; 
-            if (selectedArticle == null && dualArticles == null) {
-              _sourceTab = i; 
-            }
-          }); 
-          if (i == 1) _loadNotes(); 
-          if (i == 3) _loadOfflineData(); 
-        },
+  FocusScope.of(context).unfocus();
+  if (i != 0) {
+    _searchController.clear();
+    setState(() {
+      searchResults = [];
+    });
+  }
+
+  if (i == _currentTab) {
+    if (i == 0) {
+      if (selectedArticle != null || dualArticles != null) {
+        setState(() { 
+          selectedArticle = null; 
+          dualArticles = null; 
+        });
+      } else {
+        _resetSearch();
+      }
+    }
+    return;
+  }
+  setState(() { 
+    _previousTab = _currentTab;
+    _currentTab = i; 
+    if (selectedArticle == null && dualArticles == null) {
+      _sourceTab = i; 
+    }
+  }); 
+  if (i == 1) _loadNotes(); 
+  if (i == 3) _loadOfflineData(); 
+},
         onThemeChanged: widget.updateTheme,
         showInternalPage: _showInternalPage,
         gendingLabels: gendingLabels,
@@ -763,19 +749,37 @@ return GestureDetector(
   }
 
 Widget _buildTabContent() {
-    // 1. Ganti skeleton yang sudah dihapus dengan Loading Spinner
+    if (selectedArticle != null && _currentTab == _sourceTab) {
+      return ArticleReader(
+        article: selectedArticle!,
+        isDarkMode: widget.isDarkMode,
+        isSaved: _isDownloaded(selectedArticle!.id),
+        onDownload: () async { await _loadOfflineData(); },
+        onClose: () => setState(() => selectedArticle = null),
+      );
+    }
+    if (dualArticles != null && _currentTab == _sourceTab) {
+      return ArticleReader(
+        articles: dualArticles!,
+        isDarkMode: widget.isDarkMode,
+        isDualMode: true,
+        isSaved: false,
+        onDownload: () {},
+        onClose: () => setState(() => dualArticles = null),
+      );
+    }
+
+    // 2. Loading Spinner (Jika sedang memuat data)
     if (isInitialLoading || isSearching) {
       return const Center(child: CircularProgressIndicator(color: Colors.red));
     }
-    
-    // 2. Cek jika offline dan tidak ada data
+
     if (_currentTab == 0 && isOffline && feedArticles.isEmpty) return _buildOfflineError();
     
-    // 3. FooterWidget di sini hanya untuk mengambil tampilan (bukan navigasi utama)
     final menuContent = FooterWidget(
       currentTab: _currentTab,
       isDarkMode: widget.isDarkMode,
-      onTabTap: (i) {}, 
+      onTabTap: (i) {}
       onThemeChanged: widget.updateTheme,
       showInternalPage: _showInternalPage,
       gendingLabels: gendingLabels,
@@ -787,21 +791,19 @@ Widget _buildTabContent() {
     );
 
     switch (_currentTab) {
-      case 0: 
-        // Beranda & Hasil Cari
-        List<Article> displayList = searchResults.isNotEmpty ? searchResults : feedArticles;
-        return _buildArticleList(displayList);
-        
-      case 1: return menuContent.buildCatatan(
-      child: _buildNotesUI(),);
-      case 2: return menuContent.buildTayubMode(); // Ambil dari footer_widget.dart
-      case 3: 
-        // Koleksi Offline
-        List<Article> offlineList = searchResults.isNotEmpty ? searchResults : offlineArticles;
-        return _buildArticleList(offlineList, isOfflineTab: true);
-      case 4: return menuContent.buildSetelan(); // Ambil dari footer_widget.dart
-      default: return _buildArticleList(feedArticles);
-    }
+  case 0: 
+    List<Article> displayList = searchResults.isNotEmpty ? searchResults : feedArticles;
+    return _buildArticleList(displayList);
+    
+  case 1: return menuContent.buildCatatan(child: _buildNotesUI());
+  case 2: return menuContent.buildTayubMode(); 
+  
+  case 3: 
+    return _buildArticleList(offlineArticles, isOfflineTab: true);
+    
+  case 4: return menuContent.buildSetelan(); 
+  default: return _buildArticleList(feedArticles);
+  }
 }
   
   Widget _buildOfflineError() {
@@ -1085,6 +1087,7 @@ void _viewNoteDetail(Map<String, dynamic> note) {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
                   _saveNote(tC.text, cC.text, id: existingNote?['id']);
                   Navigator.pop(context);
                 },
