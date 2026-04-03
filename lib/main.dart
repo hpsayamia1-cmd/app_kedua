@@ -779,7 +779,7 @@ Widget _buildTabContent() {
     final menuContent = FooterWidget(
       currentTab: _currentTab,
       isDarkMode: widget.isDarkMode,
-      onTabTap: (i) {}
+      onTabTap: (i) {},
       onThemeChanged: widget.updateTheme,
       showInternalPage: _showInternalPage,
       gendingLabels: gendingLabels,
