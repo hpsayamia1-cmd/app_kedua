@@ -135,25 +135,25 @@ class _RootNavigationState extends State<RootNavigation> {
 
     // --- FITUR AUTO-ONLINE ---
     // Cek status internet setiap 5 detik
-    _networkTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
-      // Jika saat ini terdeteksi offline DAN daftar artikel masih kosong DAN sedang di Tab Beranda
-      if (isOffline && feedArticles.isEmpty && _currentTab == 0 && !isSearching) {
-        bool online = await _hasInternet();
-        if (online) {
-          debugPrint("Sinyal Sinsangnot kembali! Mengambil data...");
+    _networkTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      bool online = await _bloggerService.checkConnection();
+      
+      if (online) {
+        if (isOffline) { 
+          debugPrint("kembali Online!");
+          setState(() {
+            isOffline = false;
+            isInitialLoading = true;
+          });
           _fetchInitialFeed();
           _fetchSitemap();
-          
-          // Opsional: Kasih tahu user kalau sudah online
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Anda kembali online! Memperbarui daftar gending..."),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
+        }
+      } else {
+        if (!isOffline) {
+          debugPrint("Jaringan buruk. Beralih ke mode Offline...");
+          setState(() {
+            isOffline = true;
+          });
         }
       }
     });
@@ -335,32 +335,43 @@ Future<void> _fetchInitialFeed() async {
   }
 
 Future<void> _handleSearch(String q) async {
-    if (q.isEmpty) return;
-    _searchFocusNode.unfocus(); 
-    setState(() { isSearching = true; filteredSuggestions = []; selectedArticle = null; dualArticles = null; });
+  if (q.isEmpty) return;
+  _searchFocusNode.unfocus(); 
+  setState(() { 
+    isSearching = true; 
+    searchResults = []; 
+  });
+  
+  try {
+    final data = await _bloggerService.searchPosts(q).timeout(const Duration(seconds: 10));
     
-    try {
-      final data = await _bloggerService.searchPosts(q);
+    if (data.isNotEmpty) {
       setState(() {
         searchResults = data.map((i) {
           String rawImg = _extractImageUrl(i['content']);
           return Article(
-            id: i['url'], 
-            title: i['title'], 
-            content: i['content'], 
-            url: i['url'], 
-            label: i['label'], 
-            imageUrl: _getLowResThumbnail(rawImg)
+            id: i['url'], title: i['title'], content: i['content'], 
+            url: i['url'], label: i['label'], imageUrl: _getLowResThumbnail(rawImg)
           );
         }).toList();
-        _currentTab = 0;
-        isOffline = false;
+        isOffline = false; 
       });
-    } catch (e) { 
+    } else {
       _searchOfflineLocally(q);
     }
-    setState(() => isSearching = false);
+  } catch (e) { 
+    debugPrint("Jaringan bermasalah atau timeout, lari ke koleksi...");
+    _searchOfflineLocally(q);
+    if (searchResults.isEmpty) {
+      setState(() => isOffline = true);
+    }
   }
+  
+  setState(() { 
+    isSearching = false;
+    _currentTab = 0; 
+  });
+}
 
 void _searchOfflineLocally(String q) {
     List<Article> local = offlineArticles.where((a) => a.title.toLowerCase().contains(q.toLowerCase())).toList();
@@ -396,49 +407,47 @@ void _openArticle(Article a) {
 
   // INI FUNGSI BARU UNTUK TOMBOL "BUKA 2 NOTASI"
 Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) async {
-    setState(() { isSearching = true; });
-    
-    try {
-      // 1. FUNGSI CEK LOKAL: Kita cari di koleksi offline dulu
-      Article? a1 = _findInOffline(s1['title']!);
-      Article? a2 = _findInOffline(s2['title']!);
-
-      // 2. Jika salah satu atau keduanya TIDAK ADA di offline, baru cari ke internet
-      if (a1 == null || a2 == null) {
-        final results = await Future.wait([
-          a1 == null ? _bloggerService.searchPosts(s1['title']!) : Future.value([]),
-          a2 == null ? _bloggerService.searchPosts(s2['title']!) : Future.value([]),
-        ]);
-
-        if (a1 == null && results[0].isNotEmpty) {
-          var i = results[0][0];
+  setState(() { isSearching = true; });
+  
+  try {
+    Article? a1 = _findInOffline(s1['title']!);
+    Article? a2 = _findInOffline(s2['title']!);
+    if (!isOffline) {
+      if (a1 == null) {
+        final res1 = await _bloggerService.searchPosts(s1['title']!);
+        if (res1.isNotEmpty) {
+          var i = res1[0];
           a1 = Article(id: i['url'], title: i['title'], content: i['content'], url: i['url'], label: i['label'], imageUrl: _extractImageUrl(i['content']));
         }
-        if (a2 == null && results[1].isNotEmpty) {
-          var i = results[1][0];
+      }
+      if (a2 == null) {
+        final res2 = await _bloggerService.searchPosts(s2['title']!);
+        if (res2.isNotEmpty) {
+          var i = res2[0];
           a2 = Article(id: i['url'], title: i['title'], content: i['content'], url: i['url'], label: i['label'], imageUrl: _extractImageUrl(i['content']));
         }
       }
-
-      // 3. Tampilkan hasilnya jika keduanya berhasil ditemukan (baik lokal maupun online)
-      if (a1 != null && a2 != null) {
-        setState(() {
-          dualArticles = [a1!, a2!];
-          selectedArticle = null;         
-        });
-      }
-    } catch (e) {
-      debugPrint("Gagal memuat dual gending: $e");
     }
-    setState(() { isSearching = false; });
+
+    if (a1 != null && a2 != null) {
+      setState(() {
+        dualArticles = [a1!, a2!];
+        selectedArticle = null;
+        _sourceTab = _currentTab; 
+      });
+    }
+  } catch (e) {
+    debugPrint("Gagal memuat dual gending: $e");
   }
+  setState(() { isSearching = false; });
+}
 
   // Fungsi pembantu untuk mencari artikel di daftar offlineArticles
   Article? _findInOffline(String title) {
     try {
       return offlineArticles.firstWhere(
-        (a) => a.title.toLowerCase() == title.toLowerCase()
-      );
+  (a) => a.title.trim().toLowerCase() == title.trim().toLowerCase()
+);
     } catch (e) {
       return null;
     }
@@ -591,26 +600,24 @@ final header = HeaderWidget(
       filteredSuggestions: filteredSuggestions,
       onSearchSubmitted: _handleSearch,
       onSearchChanged: (val) {
-        if (_debounce?.isActive ?? false) _debounce!.cancel();
-        _debounce = Timer(const Duration(milliseconds: 500), () {
-          if (val.isEmpty) { 
-            setState(() => filteredSuggestions = []); 
-          } else {
-            // LOGIKA PINTAR UNTUK HEADER:
-            // Jika sitemapSuggestions kosong (Offline), cari saran dari offlineArticles
-            var source = sitemapSuggestions.isNotEmpty 
-                ? sitemapSuggestions 
-                : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList();
+  if (_debounce?.isActive ?? false) _debounce!.cancel();
+  _debounce = Timer(const Duration(milliseconds: 500), () {
+    if (val.isEmpty) { 
+      setState(() => filteredSuggestions = []); 
+    } else {
+      var source = isOffline 
+          ? offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()
+          : sitemapSuggestions;
 
-            setState(() { 
-              filteredSuggestions = source
-                  .where((s) => s['title']!.toLowerCase().contains(val.toLowerCase()))
-                  .take(6) // Ambil 6 saran saja agar tidak penuh layarnya
-                  .toList(); 
-            });
-          }
-        });
-      },
+      setState(() { 
+        filteredSuggestions = source
+            .where((s) => s['title']!.toLowerCase().contains(val.toLowerCase()))
+            .take(6)
+            .toList(); 
+      });
+    }
+  });
+},
       onSitemapTap: (suggestion) {
         setState(() => filteredSuggestions = []);
         // Jika offline, panggil _openArticle langsung dari data lokal
@@ -626,6 +633,7 @@ final header = HeaderWidget(
       onResetSearch: _resetSearch,
       onLogoTap: () { _resetSearch(); setState(() { _currentTab = 0; selectedArticle = null; dualArticles = null; }); },
     );
+
 
 return GestureDetector(
   onTap: () {
@@ -699,44 +707,44 @@ body: Stack(
     header.buildFloatingSuggestions(context),
   ],
 ),
-      bottomNavigationBar: FooterWidget(
+bottomNavigationBar: FooterWidget(
         currentTab: _currentTab,
         isDarkMode: widget.isDarkMode,
-        sitemap: sitemapSuggestions.isNotEmpty 
-            ? sitemapSuggestions 
-            : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
+        sitemap: isOffline 
+    ? offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()
+    : (sitemapSuggestions.isNotEmpty ? sitemapSuggestions : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()),
         onTabTap: (i) { 
-  FocusScope.of(context).unfocus();
-  if (i != 0) {
-    _searchController.clear();
-    setState(() {
-      searchResults = [];
-    });
-  }
+          FocusScope.of(context).unfocus();
+          if (i != 0) {
+            _searchController.clear();
+            setState(() {
+              searchResults = [];
+            });
+          }
 
-  if (i == _currentTab) {
-    if (i == 0) {
-      if (selectedArticle != null || dualArticles != null) {
-        setState(() { 
-          selectedArticle = null; 
-          dualArticles = null; 
-        });
-      } else {
-        _resetSearch();
-      }
-    }
-    return;
-  }
-  setState(() { 
-    _previousTab = _currentTab;
-    _currentTab = i; 
-    if (selectedArticle == null && dualArticles == null) {
-      _sourceTab = i; 
-    }
-  }); 
-  if (i == 1) _loadNotes(); 
-  if (i == 3) _loadOfflineData(); 
-},
+          if (i == _currentTab) {
+            if (i == 0) {
+              if (selectedArticle != null || dualArticles != null) {
+                setState(() { 
+                  selectedArticle = null; 
+                  dualArticles = null; 
+                });
+              } else {
+                _resetSearch();
+              }
+            }
+            return;
+          }
+          setState(() { 
+            _previousTab = _currentTab;
+            _currentTab = i; 
+            if (selectedArticle == null && dualArticles == null) {
+              _sourceTab = i; 
+            }
+          }); 
+          if (i == 1) _loadNotes(); 
+          if (i == 3) _loadOfflineData(); 
+        },
         onThemeChanged: widget.updateTheme,
         showInternalPage: _showInternalPage,
         gendingLabels: gendingLabels,
@@ -749,6 +757,21 @@ body: Stack(
   }
 
 Widget _buildTabContent() {
+  // --- LOGIKA FILTER BERANDA (kepala) ---
+    List<Article> displayList;
+    bool showEmptyOffline = false;
+    if (isOffline && _currentTab == 0) {
+      if (offlineArticles.isNotEmpty) {
+        displayList = offlineArticles;
+      } else {
+        displayList = []; 
+        showEmptyOffline = true;
+      }
+    } else {
+      displayList = searchResults.isNotEmpty ? searchResults : feedArticles;
+    }
+        // --- (buntut) ---
+
     if (selectedArticle != null && _currentTab == _sourceTab) {
       return ArticleReader(
         article: selectedArticle!,
@@ -773,8 +796,6 @@ Widget _buildTabContent() {
     if (isInitialLoading || isSearching) {
       return const Center(child: CircularProgressIndicator(color: Colors.red));
     }
-
-    if (_currentTab == 0 && isOffline && feedArticles.isEmpty) return _buildOfflineError();
     
     final menuContent = FooterWidget(
       currentTab: _currentTab,
@@ -792,8 +813,8 @@ Widget _buildTabContent() {
 
     switch (_currentTab) {
   case 0: 
-    List<Article> displayList = searchResults.isNotEmpty ? searchResults : feedArticles;
-    return _buildArticleList(displayList);
+        if (showEmptyOffline) return _buildOfflineError(); 
+        return _buildArticleList(displayList);
     
   case 1: return menuContent.buildCatatan(child: _buildNotesUI());
   case 2: return menuContent.buildTayubMode(); 
@@ -821,7 +842,77 @@ Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
       child: CircularProgressIndicator(color: Colors.red),
     );
   }
-  if (list.isEmpty) return Center(child: Text(isOfflineTab ? "Silahkan download notasi untuk ditambahkan ke koleksi. Anda tetap bisa mengakses koleksi offline kapan saja." : "Hasil tidak ditemukan."));
+if (list.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 1. LOGO DINAMIS
+              Icon(
+                isOfflineTab 
+                    ? Icons.library_music_rounded // Logo Keren untuk Koleksi
+                    : (isOffline ? Icons.signal_wifi_connected_no_internet_4_rounded : Icons.search_off_rounded), 
+                size: 100, 
+                color: Colors.red[300],
+              ),
+              const SizedBox(height: 20),
+
+              // 2. JUDUL DINAMIS
+              Text(
+                isOfflineTab 
+                    ? "Koleksi Masih Kosong" 
+                    : (isOffline ? "Koneksi Terputus" : "Gending Tidak Ditemukan"),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22, 
+                  fontWeight: FontWeight.bold, 
+                  color: widget.isDarkMode ? Colors.white : Colors.black87
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // 3. PESAN DINAMIS
+              Text(
+                isOfflineTab
+                    ? "Belum ada gending yang di-download.\nSilakan pilih gending di Beranda lalu klik tombol Simpan untuk mengisi koleksi Anda."
+                    : (isOffline 
+                        ? "Waduh, sinyalnya putus.\nPeriksa jaringan internet atau WiFi Anda agar bisa mencari gending lagi." 
+                        : "Gending belum tersedia.\nCek penulisan judul gending Anda atau kembali ke daftar utama."),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey, height: 1.4),
+              ),
+              const SizedBox(height: 35),
+
+              // 4. TOMBOL KEMBALI (Hanya muncul jika bukan di Tab Koleksi)
+              if (!isOfflineTab)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      _resetSearch();
+                      setState(() { 
+                        _currentTab = 0; 
+                        isOffline = false; 
+                      });
+                    },
+                    icon: const Icon(Icons.home_rounded),
+                    label: const Text("Kembali ke Beranda", style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 5,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
 
   return Column(
     children: [
