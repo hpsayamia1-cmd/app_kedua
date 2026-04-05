@@ -9,8 +9,9 @@ class FooterWidget extends StatefulWidget {
   final Function(String, String) showInternalPage;
   final List<String> gendingLabels;
   final Function(String) onLabelTap;
-  final List<Map<String, String>> sitemap; // Data dari main.dart
+  final List<Map<String, String>> sitemap;
   final Function(Map<String, String>, Map<String, String>)? onTayubSubmit; 
+  final Function(Map<String, String>)? onSitemapSelected;
 
   const FooterWidget({
     super.key,
@@ -23,6 +24,7 @@ class FooterWidget extends StatefulWidget {
     required this.onLabelTap,
     required this.sitemap,
     this.onTayubSubmit,
+    this.onSitemapSelected,
   });
 
   @override
@@ -34,7 +36,8 @@ class FooterWidget extends StatefulWidget {
   Widget buildTayubMode() => _TayubModeView(
     onTayubSubmit: onTayubSubmit, 
     isDarkMode: isDarkMode, 
-    sitemap: sitemap
+    sitemap: sitemap,
+    onSitemapSelected: onSitemapSelected,
   );
 
 Widget _buildCatatanWrapper(Widget child) {
@@ -152,10 +155,15 @@ class _FooterWidgetState extends State<FooterWidget> {
 // --- WIDGET KHUSUS MODE TAYUB DENGAN VALIDASI ---
 class _TayubModeView extends StatefulWidget {
   final Function(Map<String, String>, Map<String, String>)? onTayubSubmit;
+  final Function(Map<String, String>)? onSitemapSelected;
   final bool isDarkMode;
   final List<Map<String, String>> sitemap;
 
-  const _TayubModeView({this.onTayubSubmit, required this.isDarkMode, required this.sitemap});
+  const _TayubModeView({
+    this.onTayubSubmit, required 
+    this.isDarkMode, required 
+    this.sitemap,
+    this.onSitemapSelected,});
 
   @override
   State<_TayubModeView> createState() => _TayubModeViewState();
@@ -199,7 +207,10 @@ void _filterSitemap(String query, int field) {
       _suggestions = [];
       _activeField = 0;
     });
+    if (widget.onSitemapSelected != null) {
+    widget.onSitemapSelected!(item);
   }
+}
 
   void _resetTayub() {
     FocusScope.of(context).unfocus();
