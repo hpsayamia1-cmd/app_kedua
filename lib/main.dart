@@ -116,6 +116,7 @@ class _RootNavigationState extends State<RootNavigation> {
   final TextEditingController _noteSearchController = TextEditingController(); // Controller khusus kolom cari catatan
   List<Map<String, String>> sitemapSuggestions = [], filteredSuggestions = [];
   bool isInitialLoading = true, isSearching = false, isOffline = false, isMoreLoading = false;
+  bool hasSearched = false;
   
   int _currentStartIndex = 1;
   final ScrollController _scrollController = ScrollController();
@@ -339,7 +340,9 @@ Future<void> _handleSearch(String q) async {
   _searchFocusNode.unfocus(); 
   setState(() { 
     isSearching = true; 
-    searchResults = []; 
+    hasSearched = true;
+    searchResults = [];
+    filteredSuggestions = []; 
     _currentTab = 0;
   });
   
@@ -460,7 +463,6 @@ Future<void> _smartNavigate(String title, String url) async {
     });
   }
 
-  // INI FUNGSI BARU UNTUK TOMBOL "BUKA 2 NOTASI"
 Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) async {
   setState(() { isSearching = true; });
   
@@ -483,13 +485,16 @@ Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) a
         }
       }
     }
-
     if (a1 != null && a2 != null) {
       setState(() {
         dualArticles = [a1!, a2!];
         selectedArticle = null;
         _sourceTab = _currentTab; 
       });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Salah satu gending belum ada di Koleksi Offline.")),
+      );
     }
   } catch (e) {
     debugPrint("Gagal memuat dual gending: $e");
@@ -498,15 +503,15 @@ Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) a
 }
 
   // Fungsi pembantu untuk mencari artikel di daftar offlineArticles
-  Article? _findInOffline(String title) {
-    try {
-      return offlineArticles.firstWhere(
-  (a) => a.title.trim().toLowerCase() == title.trim().toLowerCase()
-);
-    } catch (e) {
-      return null;
-    }
+Article? _findInOffline(String title) {
+  try {
+    return offlineArticles.firstWhere(
+      (a) => a.title.trim().toLowerCase() == title.trim().toLowerCase()
+    );
+  } catch (e) {
+    return null;
   }
+}
 
 bool _isDownloaded(String id) {
     // Mengecek apakah ID gending ini sudah ada di daftar offlineArticles
@@ -606,7 +611,7 @@ void _deleteNote(int id) {
   void _resetSearch() { 
     _searchController.clear(); 
     _searchFocusNode.unfocus(); 
-    setState(() { searchResults = []; filteredSuggestions = []; isSearching = false; }); 
+    setState(() { searchResults = []; filteredSuggestions = []; isSearching = false; hasSearched = false; }); 
   }
 
   void _showInternalPage(String title, String content) {
@@ -757,8 +762,10 @@ bottomNavigationBar: FooterWidget(
         currentTab: _currentTab,
         isDarkMode: widget.isDarkMode,
         sitemap: isOffline 
-    ? offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()
-    : (sitemapSuggestions.isNotEmpty ? sitemapSuggestions : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()),
+       ? offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()
+      : (sitemapSuggestions.isNotEmpty 
+          ? sitemapSuggestions 
+          : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()),
         onTabTap: (i) { 
           FocusScope.of(context).unfocus();
           if (i != 0) {
@@ -860,9 +867,11 @@ if (_searchController.text.isNotEmpty || searchResults.isNotEmpty) {
       showInternalPage: _showInternalPage,
       gendingLabels: gendingLabels,
       onLabelTap: _handleSearch,
-      sitemap: sitemapSuggestions.isNotEmpty 
-          ? sitemapSuggestions 
-          : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList(),
+      sitemap: isOffline 
+          ? offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()
+          : (sitemapSuggestions.isNotEmpty 
+              ? sitemapSuggestions 
+              : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()),
       onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2),
     );
 
@@ -897,9 +906,9 @@ Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
       child: CircularProgressIndicator(color: Colors.red),
     );
   }
-if (list.isEmpty) {
-      return Center(
-        child: Padding(
+if (list.isEmpty && hasSearched && !isSearching) {
+  return Center(
+    child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

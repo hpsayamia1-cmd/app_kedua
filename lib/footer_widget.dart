@@ -179,21 +179,25 @@ class _TayubModeViewState extends State<_TayubModeView> {
   int _activeField = 0; 
 
 void _filterSitemap(String query, int field) {
-    setState(() {
-      _activeField = field;
-      if (query.isEmpty) {
-        _suggestions = [];
-      } else {
-        var allSitemap = widget.sitemap.where((s) => 
-            s['title']!.toLowerCase().contains(query.toLowerCase())).toList();
-        
-        _suggestions = allSitemap.take(5).toList();
-      }
+  setState(() {
+    _activeField = field;
+    if (query.isEmpty) {
+      _suggestions = [];
+    } else {
+      final lowercaseQuery = query.toLowerCase().trim();
       
-      if (field == 1) _selected1 = null;
-      if (field == 2) _selected2 = null;
-    });
-  }
+      var allSitemap = widget.sitemap.where((s) {
+        final title = s['title']?.toLowerCase() ?? "";
+        return title.contains(lowercaseQuery);
+      }).toList();
+      
+      _suggestions = allSitemap.take(5).toList();
+    }
+    
+    if (field == 1) _selected1 = null;
+    if (field == 2) _selected2 = null;
+  });
+}
 
   void _selectSitemap(Map<String, String> item) {
     setState(() {
