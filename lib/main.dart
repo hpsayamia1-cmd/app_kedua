@@ -340,37 +340,54 @@ Future<void> _handleSearch(String q) async {
   setState(() { 
     isSearching = true; 
     searchResults = []; 
+    _currentTab = 0;
   });
   
-  try {
-    final data = await _bloggerService.searchPosts(q).timeout(const Duration(seconds: 10));
-    
-    if (data.isNotEmpty) {
-      setState(() {
-        searchResults = data.map((i) {
-          String rawImg = _extractImageUrl(i['content']);
-          return Article(
+  List<Map<String, String>> matches = sitemapSuggestions
+      .where((s) => s['title']!.toLowerCase().contains(q.toLowerCase()))
+      .toList();
+
+  if (matches.isNotEmpty) {
+    try {
+      List<Article> tempResults = [];
+      for (var m in matches.take(5)) {
+        final data = await _bloggerService.searchPosts(m['title']!);
+        if (data.isNotEmpty) {
+          var i = data[0];
+          tempResults.add(Article(
             id: i['url'], title: i['title'], content: i['content'], 
-            url: i['url'], label: i['label'], imageUrl: _getLowResThumbnail(rawImg)
-          );
-        }).toList();
-        isOffline = false; 
-      });
-    } else {
-      _searchOfflineLocally(q);
+            url: i['url'], label: i['label'], 
+            imageUrl: _getLowResThumbnail(_extractImageUrl(i['content']))
+          ));
+        }
+      }
+      if (mounted) setState(() => searchResults = tempResults);
+    } catch (e) {
+      debugPrint("Gagal mencari gending!!: $e");
     }
-  } catch (e) { 
-    debugPrint("Jaringan bermasalah atau timeout, lari ke koleksi...");
-    _searchOfflineLocally(q);
-    if (searchResults.isEmpty) {
-      setState(() => isOffline = true);
+  }
+  if (searchResults.isEmpty) {
+    try {
+      final data = await _bloggerService.searchPosts(q).timeout(const Duration(seconds: 10));
+      if (data.isNotEmpty) {
+        setState(() {
+          searchResults = data.map((i) {
+            return Article(
+              id: i['url'], title: i['title'], content: i['content'], 
+              url: i['url'], label: i['label'], 
+              imageUrl: _getLowResThumbnail(_extractImageUrl(i['content']))
+            );
+          }).toList();
+        });
+      } else {
+        _searchOfflineLocally(q);
+      }
+    } catch (e) {
+      _searchOfflineLocally(q);
     }
   }
   
-  setState(() { 
-    isSearching = false;
-    _currentTab = 0; 
-  });
+  setState(() => isSearching = false);
 }
 
 void _searchOfflineLocally(String q) {
@@ -395,6 +412,44 @@ void _openArticle(Article a) {
       dualArticles = null;
     });
   }
+
+// FUNGSI PINTU MASUK CERDAS
+Future<void> _smartNavigate(String title, String url) async {
+  _searchFocusNode.unfocus();
+  setState(() => filteredSuggestions = []);
+  Article? localMatch = _findInOffline(title);
+  
+  if (localMatch != null) {
+    _openArticle(localMatch);
+  } else {
+    if (isOffline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Gending ini belum di-download. Aktifkan internet untuk membuka.")),
+      );
+    } else {
+      setState(() => isSearching = true);
+      try {
+        final data = await _bloggerService.searchPosts(title);
+        if (data.isNotEmpty) {
+          var i = data[0];
+          Article onlineArt = Article(
+            id: i['url'], title: i['title'], content: i['content'], 
+            url: i['url'], label: i['label'], 
+            imageUrl: _extractImageUrl(i['content'])
+          );
+          _openArticle(onlineArt);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Gending gagal dimuat, silakan coba lagi.")),
+          );
+        }
+      } catch (e) {
+        debugPrint("Navigasi error: $e");
+      }
+      setState(() => isSearching = false);
+    }
+  }
+}
 
   // Fungsi khusus untuk Mode Tayub (Membuka 2 Artikel Sekaligus)
   void _openDualArticle(Article a1, Article a2) {
@@ -619,16 +674,7 @@ final header = HeaderWidget(
   });
 },
       onSitemapTap: (suggestion) {
-        setState(() => filteredSuggestions = []);
-        // Jika offline, panggil _openArticle langsung dari data lokal
-        Article? localMatch = _findInOffline(suggestion['title']!);
-        if (localMatch != null) {
-          _openArticle(localMatch);
-        } else {
-          // Jika online, buat artikel sementara lalu ambil datanya
-          _openArticle(Article(id: suggestion['url']!, title: suggestion['title']!, content: "", url: suggestion['url']!, label: "Gending"));
-          _handleSearch(suggestion['title']!); // Picu pencarian konten lengkap
-        }
+        _smartNavigate(suggestion['title']!, suggestion['url']!);
       },
       onResetSearch: _resetSearch,
       onLogoTap: () { _resetSearch(); setState(() { _currentTab = 0; selectedArticle = null; dualArticles = null; }); },
@@ -749,7 +795,10 @@ bottomNavigationBar: FooterWidget(
         showInternalPage: _showInternalPage,
         gendingLabels: gendingLabels,
         onLabelTap: _handleSearch,
-        onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2), 
+        onTayubSubmit: (s1, s2) => _handleDualSearch(s1, s2),
+        onSitemapSelected: (item) {
+          _smartNavigate(item['title']!, item['url'] ?? "");
+        }, 
       ),
     ),
   ),
@@ -768,7 +817,13 @@ Widget _buildTabContent() {
         showEmptyOffline = true;
       }
     } else {
-      displayList = searchResults.isNotEmpty ? searchResults : feedArticles;
+if (_searchController.text.isNotEmpty || searchResults.isNotEmpty) {
+  displayList = searchResults;
+} else if (isOffline && _currentTab == 0) {
+  displayList = offlineArticles;
+} else {
+  displayList = feedArticles;
+}
     }
         // --- (buntut) ---
 
