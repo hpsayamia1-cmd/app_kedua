@@ -337,15 +337,24 @@ Future<void> _fetchInitialFeed() async {
 
 Future<void> _handleSearch(String q) async {
   if (q.isEmpty) return;
+  
+  // 1. Turunkan keyboard otomatis
+  FocusManager.instance.primaryFocus?.unfocus(); 
   _searchFocusNode.unfocus(); 
+
   setState(() { 
     isSearching = true; 
     hasSearched = true;
     searchResults = [];
     filteredSuggestions = []; 
     _currentTab = 0;
+
+    // 2. JURUS KUNCI: Reset artikel agar tampilan kembali ke daftar pencarian
+    selectedArticle = null; 
+    dualArticles = null;
   });
   
+  // Logika pencarian sitemap
   List<Map<String, String>> matches = sitemapSuggestions
       .where((s) => s['title']!.toLowerCase().contains(q.toLowerCase()))
       .toList();
@@ -369,6 +378,8 @@ Future<void> _handleSearch(String q) async {
       debugPrint("Gagal mencari gending!!: $e");
     }
   }
+  
+  // Jika hasil sitemap kosong, cari secara umum
   if (searchResults.isEmpty) {
     try {
       final data = await _bloggerService.searchPosts(q).timeout(const Duration(seconds: 10));
