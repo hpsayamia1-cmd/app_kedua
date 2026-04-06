@@ -17,3 +17,9 @@
     public static *** v(...);
     public static *** i(...);
 }
+
+-dontwarn com.google.android.play.core.**
+-keep class com.google.android.play.core.** { *; }
+
+-dontwarn io.flutter.embedding.engine.deferredcomponents.**
+-keep class io.flutter.embedding.engine.deferredcomponents.** { *; }
