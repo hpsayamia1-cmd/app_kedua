@@ -48,10 +48,7 @@ android {
     // 3. GUNAKAN KUNCI UNTUK BUILD RELEASE
     buildTypes {
         release {
-            // Kita ganti dari "debug" ke "release"
             signingConfig = signingConfigs.getByName("release")
-            
-            // Tambahkan ini biar APK lebih ringan & aman (Optimasi R8)
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

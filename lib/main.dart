@@ -23,6 +23,8 @@ class PuskarajaApp extends StatefulWidget {
 class _PuskarajaAppState extends State<PuskarajaApp> {
   ThemeMode _themeMode = ThemeMode.dark; // Default Langsung Gelap
 
+static const String unityGameId = String.fromEnvironment('UNITY_GAME_ID', defaultValue: '');
+
   @override
   void initState() {
     super.initState();
@@ -31,8 +33,12 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
   }
 
 Future<void> _initUnityAds() async {
+  if (unityGameId.isEmpty) {
+    debugPrint('Peringatan: Unity Game ID tidak ditemukan!');
+    return;
+  }
   await UnityAds.init(
-    gameId: '6070447',
+    gameId: unityGameId,
     testMode: true, // iklan palsu
     onComplete: () {
       debugPrint('semua siap!..'); 
