@@ -33,7 +33,7 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
 Future<void> _initUnityAds() async {
   await UnityAds.init(
     gameId: '6070447',
-    testMode: false, // iklan asli
+    testMode: true, // iklan palsu
     onComplete: () {
       debugPrint('semua siap!..'); 
     },
