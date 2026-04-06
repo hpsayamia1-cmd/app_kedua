@@ -394,9 +394,15 @@ Future<void> _handleSearch(String q) async {
 }
 
 void _searchOfflineLocally(String q) {
-    List<Article> local = offlineArticles.where((a) => a.title.toLowerCase().contains(q.toLowerCase())).toList();
-    setState(() { searchResults = local; });
-  }
+  String query = q.toLowerCase();
+  List<Article> local = offlineArticles.where((a) => 
+    a.title.toLowerCase().contains(query) || 
+    a.content.toLowerCase().contains(query) || 
+    a.label.toLowerCase().contains(query)
+  ).toList();
+  
+  setState(() { searchResults = local; });
+}
 
 void _openArticle(Article a) {
     _searchFocusNode.unfocus();
@@ -689,6 +695,7 @@ final header = HeaderWidget(
 return GestureDetector(
   onTap: () {
     FocusScope.of(context).unfocus();
+    setState(() => filteredSuggestions = []);
   },
   child: WillPopScope(
     onWillPop: () async {
@@ -768,6 +775,7 @@ bottomNavigationBar: FooterWidget(
           : offlineArticles.map((a) => {'title': a.title, 'url': a.url}).toList()),
         onTabTap: (i) { 
           FocusScope.of(context).unfocus();
+          setState(() => filteredSuggestions = []);
           if (i != 0) {
             _searchController.clear();
             setState(() {
@@ -813,26 +821,21 @@ bottomNavigationBar: FooterWidget(
   }
 
 Widget _buildTabContent() {
-  // --- LOGIKA FILTER BERANDA (kepala) ---
-    List<Article> displayList;
-    bool showEmptyOffline = false;
-    if (isOffline && _currentTab == 0) {
-      if (offlineArticles.isNotEmpty) {
-        displayList = offlineArticles;
-      } else {
-        displayList = []; 
-        showEmptyOffline = true;
-      }
+
+  List<Article> displayList;
+  bool showEmptyOffline = false;
+  if (hasSearched) {
+    displayList = searchResults; 
+  } else if (isOffline && _currentTab == 0) {
+    if (offlineArticles.isNotEmpty) {
+      displayList = offlineArticles;
     } else {
-if (_searchController.text.isNotEmpty || searchResults.isNotEmpty) {
-  displayList = searchResults;
-} else if (isOffline && _currentTab == 0) {
-  displayList = offlineArticles;
-} else {
-  displayList = feedArticles;
-}
+      displayList = []; 
+      showEmptyOffline = true;
     }
-        // --- (buntut) ---
+  } else {
+    displayList = feedArticles;
+  }
 
     if (selectedArticle != null && _currentTab == _sourceTab) {
       return ArticleReader(
@@ -906,7 +909,7 @@ Widget _buildArticleList(List<Article> list, {bool isOfflineTab = false}) {
       child: CircularProgressIndicator(color: Colors.red),
     );
   }
-if (list.isEmpty && hasSearched && !isSearching) {
+if (list.isEmpty && !isSearching && (isOfflineTab || hasSearched)) {
   return Center(
     child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -988,7 +991,7 @@ if (list.isEmpty && hasSearched && !isSearching) {
             Text(
               isOfflineTab 
                   ? "KOLEKSI SAYA" 
-                  : (_searchController.text.isNotEmpty ? "HASIL PENCARIAN" : "DAFTAR ISI"),
+                  : (hasSearched ? "HASIL PENCARIAN" : "DAFTAR ISI"),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 26,
