@@ -649,7 +649,7 @@ void _deleteNote(int id) {
         child: Column(children: [
           Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red)), 
           const SizedBox(height: 15), 
-          Expanded(child: SingleChildScrollView(child: Text(content, style: const TextStyle(fontSize: 16, height: 1.5)))), 
+          Expanded(child: SingleChildScrollView(child: Text(content, textAlign: TextAlign.justify, style: const TextStyle(fontSize: 16, height: 1.5)))), 
           const SizedBox(height: 20), 
           SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text("Tutup", style: TextStyle(color: Colors.white))))
         ])
