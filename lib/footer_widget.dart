@@ -71,10 +71,10 @@ Widget _buildCatatanWrapper(Widget child) {
         ),
 
         ListTile(
-          leading: const Icon(Icons.policy_outlined, color: Colors.orange),
-          title: Text("Kebijakan Privasi", style: TextStyle(color: primaryTextColor)),
-          subtitle: Text("Privacy Policy penggunaan aplikasi", style: TextStyle(color: secondaryTextColor, fontSize: 12)),
-          onTap: () async {
+  leading: const Icon(Icons.policy_outlined, color: Colors.orange),
+  title: const Text("Kebijakan Privasi"),
+  subtitle: const Text("Privacy Policy penggunaan aplikasi", style: TextStyle(fontSize: 12)),
+  onTap: () async {
             final Uri url = Uri.parse("https://sinsangnot.blogspot.com/p/privacy-policy.html");
             if (await canLaunchUrl(url)) {
               await launchUrl(url, mode: LaunchMode.externalApplication);
