@@ -543,7 +543,7 @@ bool _isDownloaded(String id) {
 
 Future<void> _loadOfflineData() async {
     final db = await DatabaseHelper.getDatabase();
-    final maps = await db.query('offline_posts');
+    final maps = await db.query('offline_posts', orderBy: 'title ASC');
     setState(() { 
       offlineArticles = maps.map((e) => Article(
         id: e['id'].toString(), 
@@ -914,7 +914,7 @@ Widget _buildTabContent() {
   Widget _buildOfflineError() {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       const Icon(Icons.wifi_off_rounded, size: 100, color: Colors.grey), 
-      const Text("Maaf, Anda Sedang Offline", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
+      const Text("Sinyal mboten wonten, Mas. Cek koneksi nggih", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
       const SizedBox(height: 24), 
       ElevatedButton(onPressed: () => setState(() => _currentTab = 3), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text("Buka Koleksi Offline", style: TextStyle(color: Colors.white)))
     ]));

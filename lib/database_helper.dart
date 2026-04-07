@@ -19,10 +19,12 @@ class DatabaseHelper {
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 6) {
-          await db.execute("DROP TABLE IF EXISTS offline_posts");
-          await db.execute(
-            "CREATE TABLE offline_posts(id TEXT PRIMARY KEY, title TEXT, content TEXT, url TEXT, label TEXT, imageUrl TEXT, localImagePath TEXT)"
-          );
+          try {
+            await db.execute("ALTER TABLE offline_posts ADD COLUMN imageUrl TEXT");
+            await db.execute("ALTER TABLE offline_posts ADD COLUMN localImagePath TEXT");
+          } catch (e) {
+            print("Kolom mungkin sudah ada: $e");
+          }
         }
         
         // JIKA VERSI NAIK KE 7: Tambahkan tabel notes tanpa menghapus data yang lama
