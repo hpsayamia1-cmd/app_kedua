@@ -31,7 +31,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       elevation: 0,
-      backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : Colors.green[900],
       automaticallyImplyLeading: false, 
       title: Row(
         children: [
@@ -47,7 +47,8 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
           const SizedBox(width: 6),
           const Text(
             "SinsangNot", 
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: -1)
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: -1
+            color: Colors.white,)
           ),
           const SizedBox(width: 10),
           
@@ -56,7 +57,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
             child: Container(
               height: 38,
               decoration: BoxDecoration(
-                color: isDarkMode ? Colors.white10 : Colors.grey[200],
+                color: isDarkMode ? Colors.white10 : Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(20)),
               child: TextField(
                 controller: searchController,
@@ -64,10 +65,11 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
                 onChanged: onSearchChanged,
                 onSubmitted: onSearchSubmitted,
                 textInputAction: TextInputAction.search,
-                style: const TextStyle(fontSize: 14),
+                style: const TextStyle(fontSize: 14, color: Colors.white),
                 decoration: InputDecoration(
                   hintText: "Cari...",
-                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintStyle: TextStyle(color: isDarkMode ? Colors.white38 : Colors.white70),
+                  prefixIcon: const Icon(Icons.search, size: 18 color: Colors.white70),
                   suffixIcon: ValueListenableBuilder<TextEditingValue>(
                     valueListenable: searchController,
                     builder: (context, value, child) {

@@ -150,9 +150,13 @@ class _FooterWidgetState extends State<FooterWidget> {
     return BottomNavigationBar(
       currentIndex: widget.currentTab,
       type: BottomNavigationBarType.fixed,
-      backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-      selectedItemColor: Colors.red,
-      unselectedItemColor: Colors.grey,
+      backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.green[900],
+      selectedItemColor: widget.isDarkMode 
+          ? Colors.red 
+          : Colors.white,
+      unselectedItemColor: widget.isDarkMode 
+          ? Colors.grey
+          : Colors.white60,
       onTap: widget.onTabTap,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
