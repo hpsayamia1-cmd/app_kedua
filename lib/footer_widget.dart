@@ -67,14 +67,14 @@ Widget _buildCatatanWrapper(Widget child) {
         ListTile(
           leading: const Icon(Icons.info_outline),
           title: const Text("Tentang & Disclaimer"),
-          onTap: () => showInternalPage("Tentang & Disclaimer", "Sinsangnot adalah aplikasi koleksi notasi gending Jawa yang dikembangkan untuk memudahkan akses dan eksplorasi musik tradisional. Aplikasi ini bersifat open-source dan terus dikembangkan dengan dukungan komunitas.\n
-          Semua data notasi diambil dari sumber yang sah dan dihormati hak ciptanya. Pembuatan aplikasi ini dilakukan dengan tujuan untuk melestarikan dan memperluas akses terhadap warisan budaya musik Jawa.\n
-          PENAFIAN (DISCLAIMER):\n
-        1. Notasi dalam aplikasi ini disusun untuk tujuan pelestarian budaya dan edukasi.\n
-        2. Terdapat kemungkinan perbedaan versi notasi sesuai dengan gaya (gagrak) atau tradisi daerah masing-masing.\n
-        3. Kami tidak bertanggung jawab atas kesalahan teknis atau perbedaan interpretasi dalam penggunaan notasi ini.\n
-        4. Semua hak cipta nama gending tetap milik penciptanya atau menjadi milik umum (public domain).\n
-     Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas penggunaan aplikasi yang sederhana ini. Komentar serta masukan anda sangat bermanfaat bagi kami untuk terus mengembangkan aplikasi ini. Saya akan terus menambah notasi baru. Anda juga bisa Request lirik gending atau notasi di blog Sinsangnot (Cari di Google dengan query 'Sinsangnot'). Terima kasih telah menggunakan Sinsangnot!"),
+          onTap: () => showInternalPage("Tentang & Disclaimer",'''Sinsangnot adalah aplikasi koleksi notasi gending Jawa yang dikembangkan untuk memudahkan akses dan eksplorasi musik tradisional. Aplikasi ini bersifat open-source dan terus dikembangkan dengan dukungan komunitas.
+          Semua data notasi diambil dari sumber yang sah dan dihormati hak ciptanya. Pembuatan aplikasi ini dilakukan dengan tujuan untuk melestarikan dan memperluas akses terhadap warisan budaya musik Jawa.
+          PENAFIAN (DISCLAIMER):
+        1. Notasi dalam aplikasi ini disusun untuk tujuan pelestarian budaya dan edukasi.
+        2. Terdapat kemungkinan perbedaan versi notasi sesuai dengan gaya (gagrak) atau tradisi daerah masing-masing.
+        3. Kami tidak bertanggung jawab atas kesalahan teknis atau perbedaan interpretasi dalam penggunaan notasi ini.
+        4. Semua hak cipta nama gending tetap milik penciptanya atau menjadi milik umum (public domain).
+         Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas penggunaan aplikasi yang sederhana ini. Komentar serta masukan anda sangat bermanfaat bagi kami untuk terus mengembangkan aplikasi ini. Saya akan terus menambah notasi baru. Anda juga bisa Request lirik gending atau notasi di blog Sinsangnot (Cari di Google dengan query 'Sinsangnot'). Terima kasih telah menggunakan Sinsangnot!'''),
         ),
 
         ListTile(
