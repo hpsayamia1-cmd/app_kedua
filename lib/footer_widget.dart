@@ -123,7 +123,7 @@ Widget _buildCatatanWrapper(Widget child) {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: primaryTextColor.withOpacity(0.9),
+                  color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black.withOpacity(0.6),
                 ),
               ),
               const SizedBox(height: 6),
@@ -132,7 +132,7 @@ Widget _buildCatatanWrapper(Widget child) {
                 style: TextStyle(
                   fontSize: 13,
                   letterSpacing: 1.2,
-                  color:secondaryTextColor,
+                  color:isDarkMode ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.5),
                 ),
               ),
               const SizedBox(height: 40),
