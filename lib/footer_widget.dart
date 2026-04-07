@@ -69,6 +69,19 @@ Widget _buildCatatanWrapper(Widget child) {
           title: const Text("Tentang Sinsangnot"),
           onTap: () => showInternalPage("Tentang", "Sinsangnot adalah aplikasi koleksi notasi gending Jawa yang dikembangkan untuk memudahkan akses dan eksplorasi musik tradisional. Aplikasi ini bersifat open-source dan terus dikembangkan dengan dukungan komunitas. Semua data notasi diambil dari sumber yang sah dan dihormati hak ciptanya. Pembuatan aplikasi ini dilakukan dengan tujuan untuk melestarikan dan memperluas akses terhadap warisan budaya musik Jawa. Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas penggunaan aplikasi yang sederhana ini. Komentar serta masukan anda sangat bermanfaat bagi kami untuk terus mengembangkan aplikasi ini. Saya akan terus menambah notasi baru. Anda juga bisa Request lirik gending atau notasi di blog Sinsangnot (Cari di Google dengan query 'Sinsangnot'). Terima kasih telah menggunakan Sinsangnot!"),
         ),
+
+        ListTile(
+          leading: const Icon(Icons.policy_outlined, color: Colors.orange),
+          title: Text("Kebijakan Privasi", style: TextStyle(color: primaryTextColor)),
+          subtitle: Text("Privacy Policy penggunaan aplikasi", style: TextStyle(color: secondaryTextColor, fontSize: 12)),
+          onTap: () async {
+            final Uri url = Uri.parse("https://sinsangnot.blogspot.com/p/privacy-policy.html");
+            if (await canLaunchUrl(url)) {
+              await launchUrl(url, mode: LaunchMode.externalApplication);
+            }
+          },
+        ),
+
         ListTile(
           leading: const Icon(Icons.favorite, color: Colors.red),
           title: const Text("Dukungan Kreator"),
@@ -108,21 +121,21 @@ Widget _buildCatatanWrapper(Widget child) {
               Text(
                 "SinsangNot Versi 1.0.0",
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? Colors.white30 : Colors.grey[400],
+                  color: primaryTextColor.withOpacity(0.9),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Text(
                 "Digital Gamelan Library",
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 13,
                   letterSpacing: 1.2,
-                  color: isDarkMode ? Colors.white10 : Colors.grey[300],
+                  color:secondaryTextColor,
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -144,7 +157,7 @@ class _FooterWidgetState extends State<FooterWidget> {
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
         BottomNavigationBarItem(icon: Icon(Icons.note_alt_outlined), label: 'Catatan'),
-        BottomNavigationBarItem(icon: Icon(Icons.library_music, size: 30), label: 'Tayub'),
+        BottomNavigationBarItem(icon: Icon(Icons.compare_arrows), label: 'Komparasi'),
         BottomNavigationBarItem(icon: Icon(Icons.download_done), label: 'Koleksi'),
         BottomNavigationBarItem(icon: Icon(Icons.menu), label: 'Menu'),
       ],
@@ -245,8 +258,8 @@ void _filterSitemap(String query, int field) {
               children: [
                 const Icon(Icons.theater_comedy, size: 60, color: Colors.red),
                 const SizedBox(height: 10),
-                const Text("Mode Tayub", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const Text("Anda harus memilih 2 notasi yang muncul di saran pencarian", style: TextStyle(color: Colors.grey)),
+                const Text("Buka 2 Notasi", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const Text("Anda harus memilih 2 notasi yang muncul di saran pencarian.", style: TextStyle(color: Colors.grey)),
                 const SizedBox(height: 30),
                 
                 _buildSearchBox(_c1, "Cari Gending 1...", 1, _selected1 != null),
