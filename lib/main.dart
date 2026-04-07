@@ -514,22 +514,35 @@ Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) a
   try {
     Article? a1 = _findInOffline(s1['title']!);
     Article? a2 = _findInOffline(s2['title']!);
+
     if (!isOffline) {
+      // Jika Gending 1 tidak ada di offline, cari di online
       if (a1 == null) {
         final res1 = await _bloggerService.searchPosts(s1['title']!);
         if (res1.isNotEmpty) {
-          var i = res1[0];
-          a1 = Article(id: i['url'], title: i['title'], content: i['content'], url: i['url'], label: i['label'], imageUrl: _extractImageUrl(i['content']));
+          // PERBAIKAN: Cari yang judulnya SAMA PERSIS (Exact Match)
+          var exact1 = res1.firstWhere(
+            (i) => i['title'].toString().trim().toLowerCase() == s1['title']!.trim().toLowerCase(),
+            orElse: () => res1[0],
+          );
+          a1 = Article(id: exact1['url'], title: exact1['title'], content: exact1['content'], url: exact1['url'], label: exact1['label'], imageUrl: _extractImageUrl(exact1['content']));
         }
       }
+      
+      // Jika Gending 2 tidak ada di offline, cari di online
       if (a2 == null) {
         final res2 = await _bloggerService.searchPosts(s2['title']!);
         if (res2.isNotEmpty) {
-          var i = res2[0];
-          a2 = Article(id: i['url'], title: i['title'], content: i['content'], url: i['url'], label: i['label'], imageUrl: _extractImageUrl(i['content']));
+          // PERBAIKAN: Cari yang judulnya SAMA PERSIS (Exact Match)
+          var exact2 = res2.firstWhere(
+            (i) => i['title'].toString().trim().toLowerCase() == s2['title']!.trim().toLowerCase(),
+            orElse: () => res2[0],
+          );
+          a2 = Article(id: exact2['url'], title: exact2['title'], content: exact2['content'], url: exact2['url'], label: exact2['label'], imageUrl: _extractImageUrl(exact2['content']));
         }
       }
     }
+
     if (a1 != null && a2 != null) {
       setState(() {
         dualArticles = [a1!, a2!];
@@ -538,7 +551,7 @@ Future<void> _handleDualSearch(Map<String, String> s1, Map<String, String> s2) a
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Salah satu gending belum ada di Koleksi Offline.")),
+        const SnackBar(content: Text("Gending gagal dimuat. Pastikan judul benar atau cek koneksi.")),
       );
     }
   } catch (e) {
