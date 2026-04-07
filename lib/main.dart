@@ -344,7 +344,6 @@ Future<void> _fetchInitialFeed() async {
 Future<void> _handleSearch(String q) async {
   if (q.isEmpty) return;
   
-  // 1. Turunkan keyboard otomatis
   FocusManager.instance.primaryFocus?.unfocus(); 
   _searchFocusNode.unfocus(); 
 
@@ -354,12 +353,13 @@ Future<void> _handleSearch(String q) async {
     searchResults = [];
     filteredSuggestions = []; 
     _currentTab = 0;
-
-    // 2. JURUS KUNCI: Reset artikel agar tampilan kembali ke daftar pencarian
     selectedArticle = null; 
     dualArticles = null;
   });
   
+  // 1. Gunakan Map untuk mencegah ID dobel (ID = URL Postingan)
+  Map<String, Article> uniqueResults = {};
+
   // Logika pencarian sitemap
   List<Map<String, String>> matches = sitemapSuggestions
       .where((s) => s['title']!.toLowerCase().contains(q.toLowerCase()))
@@ -367,47 +367,65 @@ Future<void> _handleSearch(String q) async {
 
   if (matches.isNotEmpty) {
     try {
-      List<Article> tempResults = [];
       for (var m in matches.take(5)) {
         final data = await _bloggerService.searchPosts(m['title']!);
         if (data.isNotEmpty) {
-          var i = data[0];
-          tempResults.add(Article(
-            id: i['url'], title: i['title'], content: i['content'], 
-            url: i['url'], label: i['label'], 
-            imageUrl: _getLowResThumbnail(_extractImageUrl(i['content']))
-          ));
+          // Cari yang judulnya SAMA PERSIS dengan judul di sitemap
+          var exactMatch = data.firstWhere(
+            (item) => item['title'].toString().trim().toLowerCase() == m['title']!.trim().toLowerCase(),
+            orElse: () => data[0], 
+          );
+
+          String id = exactMatch['url'];
+          if (!uniqueResults.containsKey(id)) {
+            uniqueResults[id] = Article(
+              id: id, 
+              title: exactMatch['title'], 
+              content: exactMatch['content'], 
+              url: exactMatch['url'], 
+              label: exactMatch['label'], 
+              imageUrl: _getLowResThumbnail(_extractImageUrl(exactMatch['content']))
+            );
+          }
         }
       }
-      if (mounted) setState(() => searchResults = tempResults);
     } catch (e) {
-      debugPrint("Gagal mencari gending!!: $e");
+      debugPrint("Gagal mencari sitemap: $e");
     }
   }
   
-  // Jika hasil sitemap kosong, cari secara umum
-  if (searchResults.isEmpty) {
-    try {
-      final data = await _bloggerService.searchPosts(q).timeout(const Duration(seconds: 10));
-      if (data.isNotEmpty) {
-        setState(() {
-          searchResults = data.map((i) {
-            return Article(
-              id: i['url'], title: i['title'], content: i['content'], 
-              url: i['url'], label: i['label'], 
-              imageUrl: _getLowResThumbnail(_extractImageUrl(i['content']))
-            );
-          }).toList();
-        });
-      } else {
-        _searchOfflineLocally(q);
+  // 2. Jika Map masih kosong atau Mas mau hasil lebih banyak, cari secara umum
+  try {
+    final data = await _bloggerService.searchPosts(q).timeout(const Duration(seconds: 10));
+    if (data.isNotEmpty) {
+      for (var i in data) {
+        String id = i['url'];
+        // Masukkan hanya jika ID ini belum ada di Map (Anti-Dobel)
+        if (!uniqueResults.containsKey(id)) {
+          uniqueResults[id] = Article(
+            id: id, 
+            title: i['title'], 
+            content: i['content'], 
+            url: i['url'], 
+            label: i['label'], 
+            imageUrl: _getLowResThumbnail(_extractImageUrl(i['content']))
+          );
+        }
       }
-    } catch (e) {
+    }
+  } catch (e) {
+    debugPrint("Pencarian umum error/timeout: $e");
+  }
+
+  // 3. Update state dengan hasil yang sudah unik
+  setState(() {
+    searchResults = uniqueResults.values.toList();
+    // Jika masih kosong juga, baru cari di lokal offline
+    if (searchResults.isEmpty) {
       _searchOfflineLocally(q);
     }
-  }
-  
-  setState(() => isSearching = false);
+    isSearching = false;
+  });
 }
 
 void _searchOfflineLocally(String q) {
@@ -450,24 +468,28 @@ Future<void> _smartNavigate(String title, String url) async {
   } else {
     if (isOffline) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Gending ini belum di-download. Aktifkan internet untuk membuka.")),
+        const SnackBar(content: Text("Gending ini belum di-download.")),
       );
     } else {
       setState(() => isSearching = true);
       try {
         final data = await _bloggerService.searchPosts(title);
         if (data.isNotEmpty) {
-          var i = data[0];
+          // PERBAIKAN: Cari yang judulnya SAMA PERSIS (Exact Match)
+          var exactMatch = data.firstWhere(
+            (item) => item['title'].toString().trim().toLowerCase() == title.trim().toLowerCase(),
+            orElse: () => data[0], // Jika tidak ada yang sama persis, ambil yang pertama
+          );
+
           Article onlineArt = Article(
-            id: i['url'], title: i['title'], content: i['content'], 
-            url: i['url'], label: i['label'], 
-            imageUrl: _extractImageUrl(i['content'])
+            id: exactMatch['url'], 
+            title: exactMatch['title'], 
+            content: exactMatch['content'], 
+            url: exactMatch['url'], 
+            label: exactMatch['label'], 
+            imageUrl: _extractImageUrl(exactMatch['content'])
           );
           _openArticle(onlineArt);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Gending gagal dimuat, silakan coba lagi.")),
-          );
         }
       } catch (e) {
         debugPrint("Navigasi error: $e");
