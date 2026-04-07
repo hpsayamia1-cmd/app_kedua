@@ -47,7 +47,8 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
           const SizedBox(width: 6),
           const Text(
             "SinsangNot", 
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: -1
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, 
+            letterSpacing: -1,
             color: Colors.white,)
           ),
           const SizedBox(width: 10),
@@ -69,7 +70,9 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
                 decoration: InputDecoration(
                   hintText: "Cari...",
                   hintStyle: TextStyle(color: isDarkMode ? Colors.white38 : Colors.white70),
-                  prefixIcon: const Icon(Icons.search, size: 18 color: Colors.white70),
+                  prefixIcon: 
+                  const Icon(
+                    Icons.search, size: 18, color: Colors.white70),
                   suffixIcon: ValueListenableBuilder<TextEditingValue>(
                     valueListenable: searchController,
                     builder: (context, value, child) {
