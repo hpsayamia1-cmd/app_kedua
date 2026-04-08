@@ -39,7 +39,7 @@ Future<void> _initUnityAds() async {
   }
   await UnityAds.init(
     gameId: unityGameId,
-    testMode: true, // iklan palsu
+    testMode: false, // iklan asli, bukan test
     onComplete: () {
       debugPrint('semua siap!..'); 
     },
