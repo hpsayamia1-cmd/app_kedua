@@ -10,7 +10,7 @@ class FooterWidget extends StatefulWidget {
   final List<String> gendingLabels;
   final Function(String) onLabelTap;
   final List<Map<String, String>> sitemap;
-  final Function(Map<String, String>, Map<String, String>)? onTayubSubmit; 
+  final Function(Map<String, String>, Map<String, String>)? onTayubSubmit;
   final Function(Map<String, String>)? onSitemapSelected;
 
   const FooterWidget({
@@ -34,20 +34,20 @@ class FooterWidget extends StatefulWidget {
   Widget buildCatatan({required Widget child}) => _buildCatatanWrapper(child);
   Widget buildSetelan() => _buildSetelanContent();
   Widget buildTayubMode() => _TayubModeView(
-    onTayubSubmit: onTayubSubmit, 
-    isDarkMode: isDarkMode, 
+    onTayubSubmit: onTayubSubmit,
+    isDarkMode: isDarkMode,
     sitemap: sitemap,
     onSitemapSelected: onSitemapSelected,
   );
 
-Widget _buildCatatanWrapper(Widget child) {
-  return Container( 
-    width: double.infinity,
-    height: double.infinity,
-    color: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
-    child: child, // Di sini nanti isi daftar catatannya tampil
-  );
-}
+  Widget _buildCatatanWrapper(Widget child) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      child: child, // Di sini nanti isi daftar catatannya tampil
+    );
+  }
 
   Widget _buildSetelanContent() {
     return ListView(
@@ -55,35 +55,49 @@ Widget _buildCatatanWrapper(Widget child) {
       children: [
         const Padding(
           padding: EdgeInsets.all(15),
-          child: Text("Pengaturan", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          child: Text(
+            "Pengaturan",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
         ),
         SwitchListTile(
           title: const Text("Mode Gelap"),
-          secondary: Icon(isDarkMode ? Icons.dark_mode : Icons.light_mode, color: Colors.red),
+          secondary: Icon(
+            isDarkMode ? Icons.dark_mode : Icons.light_mode,
+            color: Colors.red,
+          ),
           value: isDarkMode,
           onChanged: onThemeChanged,
         ),
         const Divider(),
-        
+
         ListTile(
           leading: const Icon(Icons.info_outline),
           title: const Text("Tentang & Disclaimer"),
-          onTap: () => showInternalPage("Tentang & Disclaimer",'''Sinsangnot adalah aplikasi koleksi notasi gending Jawa yang dikembangkan untuk memudahkan akses dan eksplorasi musik tradisional. Aplikasi ini bersifat open-source dan terus dikembangkan dengan dukungan komunitas.
+          onTap: () => showInternalPage(
+            "Tentang & Disclaimer",
+            '''Sinsangnot adalah aplikasi koleksi notasi gending Jawa yang dikembangkan untuk memudahkan akses dan eksplorasi musik tradisional. Aplikasi ini bersifat open-source dan terus dikembangkan dengan dukungan komunitas.
 Semua data notasi diambil dari sumber yang sah dan dihormati hak ciptanya. Pembuatan aplikasi ini dilakukan dengan tujuan untuk melestarikan dan memperluas akses terhadap warisan budaya musik Jawa.
 PENAFIAN (DISCLAIMER):
 1. Notasi dalam aplikasi ini disusun untuk tujuan pelestarian budaya dan edukasi.
 2. Terdapat kemungkinan perbedaan versi notasi sesuai dengan gaya (gagrak) atau tradisi daerah masing-masing.
 3. Kami tidak bertanggung jawab atas kesalahan teknis atau perbedaan interpretasi dalam penggunaan notasi ini.
 4. Semua hak cipta nama gending tetap milik penciptanya atau menjadi milik umum (public domain).
-Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas penggunaan aplikasi yang sederhana ini. Komentar serta masukan anda sangat bermanfaat bagi kami untuk terus mengembangkan aplikasi ini. Saya akan terus menambah notasi baru. Anda juga bisa Request lirik gending atau notasi di blog Sinsangnot (Cari di Google dengan query 'Sinsangnot'). Terima kasih telah menggunakan Sinsangnot!'''),
+Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas penggunaan aplikasi yang sederhana ini. Komentar serta masukan anda sangat bermanfaat bagi kami untuk terus mengembangkan aplikasi ini. Saya akan terus menambah notasi baru. Anda juga bisa Request lirik gending atau notasi di blog Sinsangnot (Cari di Google dengan query 'Sinsangnot'). Terima kasih telah menggunakan Sinsangnot!''',
+          ),
         ),
 
         ListTile(
-  leading: const Icon(Icons.policy_outlined, color: Colors.orange),
-  title: const Text("Kebijakan Privasi"),
-  subtitle: const Text("Privacy Policy penggunaan aplikasi", style: TextStyle(fontSize: 12)),
-  onTap: () async {
-            final Uri url = Uri.parse("https://sinsangnot.blogspot.com/p/privacy-policy.html");
+          leading: const Icon(Icons.policy_outlined, color: Colors.orange),
+          title: const Text("Kebijakan Privasi"),
+          subtitle: const Text(
+            "Privacy Policy penggunaan aplikasi",
+            style: TextStyle(fontSize: 12),
+          ),
+          onTap: () async {
+            final Uri url = Uri.parse(
+              "https://sinsangnot.blogspot.com/p/privacy-policy.html",
+            );
             if (await canLaunchUrl(url)) {
               await launchUrl(url, mode: LaunchMode.externalApplication);
             }
@@ -93,17 +107,26 @@ Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas
         ListTile(
           leading: const Icon(Icons.favorite, color: Colors.red),
           title: const Text("Dukungan Kreator"),
-          subtitle: const Text("Donasi seiklasnya lewat aplikasi Dana tanpa minimal transaksi"),
+          subtitle: const Text(
+            "Donasi seiklasnya lewat aplikasi Dana tanpa minimal transaksi",
+          ),
           onTap: () async {
-            final Uri url = Uri.parse("https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526");
-            if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
-
+            final Uri url = Uri.parse(
+              "https://link.dana.id/minta?full_url=https://qr.dana.id/v1/281012012021032196591526",
+            );
+            if (await canLaunchUrl(url))
+              await launchUrl(url, mode: LaunchMode.externalApplication);
           },
         ),
         ListTile(
-          leading: const Icon(Icons.public, color: Colors.blue), // Ikon bola dunia warna biru
+          leading: const Icon(
+            Icons.public,
+            color: Colors.blue,
+          ), // Ikon bola dunia warna biru
           title: const Text("Kunjungi Blog Resmi"),
-          subtitle: const Text("Baca notasi terbaru & request gending di sinsangnot.blogspot.com"),
+          subtitle: const Text(
+            "Baca notasi terbaru & request gending di sinsangnot.blogspot.com",
+          ),
           onTap: () async {
             final Uri url = Uri.parse("https://sinsangnot.blogspot.com");
             if (await canLaunchUrl(url)) {
@@ -114,9 +137,13 @@ Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas
         ListTile(
           leading: const Icon(Icons.help_center_outlined, color: Colors.green),
           title: const Text("Petunjuk Penggunaan & Update"),
-          subtitle: const Text("panduan aplikasi, Cara simpan offline & unduh aplikasi versi terbaru."),
+          subtitle: const Text(
+            "panduan aplikasi, Cara simpan offline & unduh aplikasi versi terbaru.",
+          ),
           onTap: () async {
-            final Uri url = Uri.parse("https://sinsangnot.blogspot.com/p/download-aplikasi-notasi-gamelan.html");
+            final Uri url = Uri.parse(
+              "https://sinsangnot.blogspot.com/p/download-aplikasi-notasi-gamelan.html",
+            );
             if (await canLaunchUrl(url)) {
               await launchUrl(url, mode: LaunchMode.externalApplication);
             }
@@ -127,11 +154,13 @@ Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas
           child: Column(
             children: [
               Text(
-                "SinsangNot Versi 1.0.0",
+                "SinsangNot Versi 1.0.1",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black.withOpacity(0.6),
+                  color: isDarkMode
+                      ? Colors.white.withOpacity(0.7)
+                      : Colors.black.withOpacity(0.6),
                 ),
               ),
               const SizedBox(height: 6),
@@ -140,7 +169,9 @@ Dengan alat yang seadanya, saya sebagai Developer apk sangat berterimakasih atas
                 style: TextStyle(
                   fontSize: 13,
                   letterSpacing: 1.2,
-                  color:isDarkMode ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.5),
+                  color: isDarkMode
+                      ? Colors.white.withOpacity(0.4)
+                      : Colors.black.withOpacity(0.5),
                 ),
               ),
               const SizedBox(height: 40),
@@ -158,19 +189,29 @@ class _FooterWidgetState extends State<FooterWidget> {
     return BottomNavigationBar(
       currentIndex: widget.currentTab,
       type: BottomNavigationBarType.fixed,
-      backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.green[900],
-      selectedItemColor: widget.isDarkMode 
-          ? Colors.red 
-          : Colors.white,
-      unselectedItemColor: widget.isDarkMode 
-          ? Colors.grey
-          : Colors.white60,
+      backgroundColor: widget.isDarkMode
+          ? const Color(0xFF0F0F0F)
+          : Colors.green[900],
+      selectedItemColor: widget.isDarkMode ? Colors.red : Colors.white,
+      unselectedItemColor: widget.isDarkMode ? Colors.grey : Colors.white60,
       onTap: widget.onTabTap,
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
-        BottomNavigationBarItem(icon: Icon(Icons.note_alt_outlined), label: 'Catatan'),
-        BottomNavigationBarItem(icon: Icon(Icons.compare_arrows), label: 'Komparasi'),
-        BottomNavigationBarItem(icon: Icon(Icons.download_done), label: 'Koleksi'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.home_filled),
+          label: 'Beranda',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.note_alt_outlined),
+          label: 'Catatan',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.compare_arrows),
+          label: 'Komparasi',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.download_done),
+          label: 'Koleksi',
+        ),
         BottomNavigationBarItem(icon: Icon(Icons.menu), label: 'Menu'),
       ],
     );
@@ -185,10 +226,11 @@ class _TayubModeView extends StatefulWidget {
   final List<Map<String, String>> sitemap;
 
   const _TayubModeView({
-    this.onTayubSubmit, required 
-    this.isDarkMode, required 
-    this.sitemap,
-    this.onSitemapSelected,});
+    this.onTayubSubmit,
+    required this.isDarkMode,
+    required this.sitemap,
+    this.onSitemapSelected,
+  });
 
   @override
   State<_TayubModeView> createState() => _TayubModeViewState();
@@ -197,32 +239,32 @@ class _TayubModeView extends StatefulWidget {
 class _TayubModeViewState extends State<_TayubModeView> {
   final TextEditingController _c1 = TextEditingController();
   final TextEditingController _c2 = TextEditingController();
-  
+
   Map<String, String>? _selected1;
   Map<String, String>? _selected2;
   List<Map<String, String>> _suggestions = [];
-  int _activeField = 0; 
+  int _activeField = 0;
 
-void _filterSitemap(String query, int field) {
-  setState(() {
-    _activeField = field;
-    if (query.isEmpty) {
-      _suggestions = [];
-    } else {
-      final lowercaseQuery = query.toLowerCase().trim();
-      
-      var allSitemap = widget.sitemap.where((s) {
-        final title = s['title']?.toLowerCase() ?? "";
-        return title.contains(lowercaseQuery);
-      }).toList();
-      
-      _suggestions = allSitemap.take(5).toList();
-    }
-    
-    if (field == 1) _selected1 = null;
-    if (field == 2) _selected2 = null;
-  });
-}
+  void _filterSitemap(String query, int field) {
+    setState(() {
+      _activeField = field;
+      if (query.isEmpty) {
+        _suggestions = [];
+      } else {
+        final lowercaseQuery = query.toLowerCase().trim();
+
+        var allSitemap = widget.sitemap.where((s) {
+          final title = s['title']?.toLowerCase() ?? "";
+          return title.contains(lowercaseQuery);
+        }).toList();
+
+        _suggestions = allSitemap.take(5).toList();
+      }
+
+      if (field == 1) _selected1 = null;
+      if (field == 2) _selected2 = null;
+    });
+  }
 
   void _selectSitemap(Map<String, String> item) {
     setState(() {
@@ -237,9 +279,9 @@ void _filterSitemap(String query, int field) {
       _activeField = 0;
     });
     if (widget.onSitemapSelected != null) {
-    widget.onSitemapSelected!(item);
+      widget.onSitemapSelected!(item);
+    }
   }
-}
 
   void _resetTayub() {
     FocusScope.of(context).unfocus();
@@ -253,7 +295,7 @@ void _filterSitemap(String query, int field) {
     });
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
     bool isValid = _selected1 != null && _selected2 != null;
 
@@ -270,26 +312,48 @@ void _filterSitemap(String query, int field) {
               children: [
                 const Icon(Icons.theater_comedy, size: 60, color: Colors.red),
                 const SizedBox(height: 10),
-                const Text("Buka 2 Notasi", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const Text("Anda harus memilih 2 notasi yang muncul di saran pencarian.", style: TextStyle(color: Colors.grey)),
+                const Text(
+                  "Buka 2 Notasi",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const Text(
+                  "Anda harus memilih 2 notasi yang muncul di saran pencarian.",
+                  style: TextStyle(color: Colors.grey),
+                ),
                 const SizedBox(height: 30),
-                
-                _buildSearchBox(_c1, "Cari Gending 1...", 1, _selected1 != null),
+
+                _buildSearchBox(
+                  _c1,
+                  "Cari Gending 1...",
+                  1,
+                  _selected1 != null,
+                ),
                 const SizedBox(height: 15),
                 const Icon(Icons.link, color: Colors.red),
                 const SizedBox(height: 15),
-                _buildSearchBox(_c2, "Cari Gending 2...", 2, _selected2 != null),
+                _buildSearchBox(
+                  _c2,
+                  "Cari Gending 2...",
+                  2,
+                  _selected2 != null,
+                ),
                 const SizedBox(height: 15),
-                
+
                 // Tombol Reset Pilihan
                 Row(
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     TextButton.icon(
                       onPressed: _resetTayub,
-                      icon: const Icon(Icons.refresh, color: Colors.grey, size: 18),
-                      label: const Text("Reset Pilihan", 
-                        style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      icon: const Icon(
+                        Icons.refresh,
+                        color: Colors.grey,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        "Reset Pilihan",
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
                     ),
                   ],
                 ),
@@ -301,11 +365,20 @@ void _filterSitemap(String query, int field) {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isValid ? Colors.red : Colors.grey[800],
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
                     ),
-                    onPressed: isValid ? () => widget.onTayubSubmit!(_selected1!, _selected2!) : null,
-                    child: Text("BUKA 2 NOTASI", 
-                      style: TextStyle(color: isValid ? Colors.white : Colors.white24, fontWeight: FontWeight.bold)),
+                    onPressed: isValid
+                        ? () => widget.onTayubSubmit!(_selected1!, _selected2!)
+                        : null,
+                    child: Text(
+                      "BUKA 2 NOTASI",
+                      style: TextStyle(
+                        color: isValid ? Colors.white : Colors.white24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -317,18 +390,27 @@ void _filterSitemap(String query, int field) {
             Positioned(
               left: 25,
               right: 25,
-              top: _activeField == 1 ? 210 : 315, 
+              top: _activeField == 1 ? 210 : 315,
               child: Material(
                 elevation: 10,
                 borderRadius: BorderRadius.circular(10),
-                color: widget.isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+                color: widget.isDarkMode
+                    ? const Color(0xFF2C2C2C)
+                    : Colors.white,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: _suggestions.map((s) => ListTile(
-                    dense: true,
-                    title: Text(s['title']!, style: const TextStyle(fontSize: 14)),
-                    onTap: () => _selectSitemap(s),
-                  )).toList(),
+                  children: _suggestions
+                      .map(
+                        (s) => ListTile(
+                          dense: true,
+                          title: Text(
+                            s['title']!,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          onTap: () => _selectSitemap(s),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
             ),
@@ -337,23 +419,33 @@ void _filterSitemap(String query, int field) {
     ); // Penutup Container
   }
 
-  Widget _buildSearchBox(TextEditingController controller, String hint, int field, bool isSelected) {
+  Widget _buildSearchBox(
+    TextEditingController controller,
+    String hint,
+    int field,
+    bool isSelected,
+  ) {
     return TextField(
       controller: controller,
       onChanged: (val) => _filterSitemap(val, field),
       style: TextStyle(
-        color: isSelected ? Colors.blue : (widget.isDarkMode ? Colors.white : Colors.black),
+        color: isSelected
+            ? Colors.blue
+            : (widget.isDarkMode ? Colors.white : Colors.black),
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: const Icon(Icons.search),
-        suffixIcon: isSelected 
+        suffixIcon: isSelected
             ? const Icon(Icons.check_circle, color: Colors.green)
             : const Icon(Icons.cancel, color: Colors.red, size: 20),
         filled: true,
         fillColor: widget.isDarkMode ? Colors.white10 : Colors.grey[100],
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }

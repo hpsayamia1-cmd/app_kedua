@@ -4,8 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:sqflite/sqflite.dart'; 
-import 'main.dart'; 
+import 'package:sqflite/sqflite.dart';
+import 'main.dart';
 import 'database_helper.dart';
 import 'package:unity_ads_plugin/unity_ads_plugin.dart';
 
@@ -15,8 +15,8 @@ class ArticleReader extends StatefulWidget {
   final bool isDarkMode;
   final bool isDualMode;
   final VoidCallback onClose;
-  final bool isSaved;        
-  final VoidCallback onDownload; 
+  final bool isSaved;
+  final VoidCallback onDownload;
 
   const ArticleReader({
     super.key,
@@ -34,43 +34,26 @@ class ArticleReader extends StatefulWidget {
 }
 
 class _ArticleReaderState extends State<ArticleReader> {
-late bool _localIsSaved;
-bool _isAdsShowing = false;
+  late bool _localIsSaved;
+  bool _isAdsShowing = false;
 
-void _showAdsThenDownload() async {
-  if (_isAdsShowing) return;
-  setState(() {
-    _isAdsShowing = true;
-  });
-  _showLoading(context);
-  await UnityAds.load(
-    placementId: 'Interstitial_Android',
-    onComplete: (placementId) {
-      if (mounted) Navigator.of(context).pop();
-      UnityAds.showVideoAd(
-        placementId: placementId,
-        onComplete: (id) {
-          _isAdsShowing = false;
-          _saveToOffline(context, widget.article!);
-        },
-        onFailed: (id, error, message) {
-          _isAdsShowing = false;
-          _saveToOffline(context, widget.article!);
-        },
-      );
-    },
-    onFailed: (placementId, error, message) {
-      if (mounted) Navigator.of(context).pop();
-      _isAdsShowing = false;
-      _saveToOffline(context, widget.article!);
-    },
-  );
-}
+  void _processDownload() async {
+    if (_localIsSaved) return;
+
+    // Tampilkan pop-up loading bawaan Mas
+    _showLoading(context);
+
+    // Langsung eksekusi simpan ke offline (sat-set)
+    await _saveToOffline(context, widget.article!);
+
+    // Tutup pop-up loading setelah selesai
+    if (mounted) Navigator.of(context).pop();
+  }
 
   @override
   void initState() {
     super.initState();
-    _localIsSaved = widget.isSaved; 
+    _localIsSaved = widget.isSaved;
   }
 
   Map<String, String> _parseContent(String html) {
@@ -93,21 +76,25 @@ void _showAdsThenDownload() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget.isDarkMode ? const Color(0xFF0F0F0F) : Colors.white,
+      backgroundColor: widget.isDarkMode
+          ? const Color(0xFF0F0F0F)
+          : Colors.white,
       body: Stack(
         children: [
           // Konten Notasi & Lirik
-          widget.isDualMode ? _buildDualView() : _buildSingleView(widget.article!),
+          widget.isDualMode
+              ? _buildDualView()
+              : _buildSingleView(widget.article!),
 
           // Tombol Download Mengambang (Floating Pojok Kanan Bawah)
           if (!widget.isDualMode)
             Positioned(
-              bottom: 30, 
-              right: 20,  
+              bottom: 30,
+              right: 20,
               child: FloatingActionButton(
                 elevation: 6,
                 backgroundColor: _localIsSaved ? Colors.green : Colors.red,
-                onPressed: _localIsSaved ? null : () => _showAdsThenDownload(),
+                onPressed: _localIsSaved ? null : () => _processDownload(),
                 child: Icon(
                   _localIsSaved ? Icons.check : Icons.download_for_offline,
                   color: Colors.white,
@@ -126,12 +113,15 @@ void _showAdsThenDownload() async {
       minScale: 0.5,
       maxScale: 4.0,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 4.0), 
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
         child: Column(
           children: [
+            _buildBannerAd(),
             _buildNotasiImage(data['image']!),
             if (data['lirik']!.isNotEmpty) _buildLirikBox(data['lirik']!),
-            const SizedBox(height: 120), // Beri jarak agar tidak tertutup tombol FAB
+            const SizedBox(
+              height: 120,
+            ), // Beri jarak agar tidak tertutup tombol FAB
           ],
         ),
       ),
@@ -150,9 +140,13 @@ void _showAdsThenDownload() async {
               padding: const EdgeInsets.all(8.0),
               child: Text(
                 "Gending ${index + 1}: ${widget.articles![index].title}",
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
               ),
             ),
+            _buildBannerAd(),
             _buildNotasiImage(data['image']!),
             if (data['lirik']!.isNotEmpty) _buildLirikBox(data['lirik']!),
             const Divider(height: 40, thickness: 2, color: Colors.red),
@@ -162,32 +156,65 @@ void _showAdsThenDownload() async {
     );
   }
 
+  Widget _buildBannerAd() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15, top: 10),
+      alignment: Alignment.center,
+      child: UnityBannerAd(
+        placementId: 'Banner_Android', // Sesuai ID dari Dashboard Mas
+        onLoad: (placementId) => debugPrint('Banner dimuat: $placementId'),
+        onClick: (placementId) => debugPrint('Banner diklik: $placementId'),
+        onFailed: (placementId, error, message) =>
+            debugPrint('Banner gagal: $error $message'),
+      ),
+    );
+  }
+
   Widget _buildNotasiImage(String url) {
     if (url.isEmpty) return const SizedBox();
 
     const invertMatrix = ColorFilter.matrix([
-      -1,  0,  0, 0, 255,
-       0, -1,  0, 0, 255,
-       0,  0, -1, 0, 255,
-       0,  0,  0, 1,   0,
+      -1,
+      0,
+      0,
+      0,
+      255,
+      0,
+      -1,
+      0,
+      0,
+      255,
+      0,
+      0,
+      -1,
+      0,
+      255,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
 
-    return RepaintBoundary( 
+    return RepaintBoundary(
       child: ColorFiltered(
         // PERBAIKAN: Pakai widget.isDarkMode
-        colorFilter: widget.isDarkMode ? invertMatrix : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+        colorFilter: widget.isDarkMode
+            ? invertMatrix
+            : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
         child: CachedNetworkImage(
           imageUrl: url,
           width: double.infinity,
           fit: BoxFit.contain,
-          memCacheWidth: 1000, 
+          memCacheWidth: 1000,
           placeholder: (context, url) => const Center(
             child: Padding(
               padding: EdgeInsets.all(40.0),
               child: CircularProgressIndicator(color: Colors.red),
             ),
           ),
-          errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 50),
+          errorWidget: (context, url, error) =>
+              const Icon(Icons.broken_image, size: 50),
         ),
       ),
     );
@@ -200,7 +227,9 @@ void _showAdsThenDownload() async {
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         // PERBAIKAN: Pakai widget.isDarkMode
-        color: widget.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey[100],
+        color: widget.isDarkMode
+            ? Colors.white.withOpacity(0.05)
+            : Colors.grey[100],
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
@@ -208,21 +237,26 @@ void _showAdsThenDownload() async {
         style: TextStyle(
           fontSize: 18,
           height: 1.5,
-          fontFamily: 'monospace', 
+          fontFamily: 'monospace',
           // PERBAIKAN: Pakai widget.isDarkMode
           color: widget.isDarkMode ? Colors.white70 : Colors.black87,
         ),
       ),
     );
   }
+
   void _showLoading(BuildContext context) {
     showDialog(
       context: context,
       barrierDismissible: false, // User tidak bisa asal klik luar untuk nutup
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: widget.isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          backgroundColor: widget.isDarkMode
+              ? const Color(0xFF2C2C2C)
+              : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: Row(
@@ -232,7 +266,9 @@ void _showAdsThenDownload() async {
                 const SizedBox(width: 20),
                 Text(
                   "Menyimpan ke Koleksi...",
-                  style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+                  style: TextStyle(
+                    color: widget.isDarkMode ? Colors.white : Colors.black,
+                  ),
                 ),
               ],
             ),
@@ -252,29 +288,25 @@ void _showAdsThenDownload() async {
         final response = await http.get(Uri.parse(imageUrl));
         if (response.statusCode == 200) {
           final directory = await getApplicationDocumentsDirectory();
-          String fileName = "img_${art.id.split('/').last}.webp"; 
+          String fileName = "img_${art.id.split('/').last}.webp";
           String filePath = p.join(directory.path, fileName);
-          
+
           File file = File(filePath);
           await file.writeAsBytes(response.bodyBytes);
-          localPath = filePath; 
+          localPath = filePath;
         }
       }
 
       final db = await DatabaseHelper.getDatabase();
-      await db.insert(
-        'offline_posts',
-        {
-          'id': art.id,
-          'title': art.title,
-          'content': art.content,
-          'url': art.url,
-          'label': art.label,
-          'imageUrl': imageUrl,
-          'localImagePath': localPath, 
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await db.insert('offline_posts', {
+        'id': art.id,
+        'title': art.title,
+        'content': art.content,
+        'url': art.url,
+        'label': art.label,
+        'imageUrl': imageUrl,
+        'localImagePath': localPath,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       setState(() => _localIsSaved = true);
       widget.onDownload();
@@ -287,7 +319,10 @@ void _showAdsThenDownload() async {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal simpan: $e"), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text("Gagal simpan: $e"),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
