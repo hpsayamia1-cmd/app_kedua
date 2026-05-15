@@ -578,73 +578,91 @@ class _RootNavigationState extends State<RootNavigation> {
     });
 
     try {
-      Article? a1 = _findInOffline(s1['title']!);
-      Article? a2 = _findInOffline(s2['title']!);
+      Article? a1 = _findInOffline(s1['title']!); //
+      Article? a2 = _findInOffline(s2['title']!); //
 
       if (!isOffline) {
+        //
         if (a1 == null) {
-          final res1 = await _bloggerService.searchPosts(s1['title']!);
+          //
+          final res1 = await _bloggerService.searchPosts(s1['title']!); //
           if (res1.isNotEmpty) {
+            //
             var ex1 = res1.firstWhere(
+              //
               (i) =>
-                  _cleanString(i['title'].toString()) ==
-                  _cleanString(s1['title']!),
+                  _cleanString(i['title'].toString()) == //
+                  _cleanString(s1['title']!), //
               orElse: () => res1.firstWhere(
+                //
                 (i) => _cleanString(
-                  i['title'].toString(),
-                ).contains(_cleanString(s1['title']!)),
-                orElse: () => res1[0],
+                  //
+                  i['title'].toString(), //
+                ).contains(_cleanString(s1['title']!)), //
+                orElse: () => res1[0], //
               ),
             );
             a1 = Article(
-              id: ex1['url'],
-              title: ex1['title'],
-              content: ex1['content'],
-              url: ex1['url'],
-              label: ex1['label'],
-              imageUrl: _extractImageUrl(ex1['content']),
+              //
+              id: ex1['url'], //
+              title: ex1['title'], //
+              content: ex1['content'], //
+              url: ex1['url'], //
+              label: ex1['label'], //
+              imageUrl: _extractImageUrl(ex1['content']), //
             );
           }
         }
 
         if (a2 == null) {
-          final res2 = await _bloggerService.searchPosts(s2['title']!);
+          //
+          final res2 = await _bloggerService.searchPosts(s2['title']!); //
           if (res2.isNotEmpty) {
+            //
             var ex2 = res2.firstWhere(
+              //
               (i) =>
-                  _cleanString(i['title'].toString()) ==
-                  _cleanString(s2['title']!),
+                  _cleanString(i['title'].toString()) == //
+                  _cleanString(s2['title']!), //
               orElse: () => res2.firstWhere(
+                //
                 (i) => _cleanString(
-                  i['title'].toString(),
-                ).contains(_cleanString(s2['title']!)),
-                orElse: () => res2[0],
+                  //
+                  i['title'].toString(), //
+                ).contains(_cleanString(s2['title']!)), //
+                orElse: () => res2[0], //
               ),
             );
             a2 = Article(
-              id: ex2['url'],
-              title: ex2['title'],
-              content: ex2['content'],
-              url: ex2['url'],
-              label: ex2['label'],
-              imageUrl: _extractImageUrl(ex2['content']),
+              //
+              id: ex2['url'], //
+              title: ex2['title'], //
+              content: ex2['content'], //
+              url: ex2['url'], //
+              label: ex2['label'], //
+              imageUrl: _extractImageUrl(ex2['content']), //
             );
           }
         }
       }
 
       if (a1 != null && a2 != null) {
+        //
         setState(() {
-          dualArticles = [a1!, a2!];
+          // PERBAIKAN UTAMA: Tutup artikel tunggal Beranda/Koleksi secara adil
           selectedArticle = null;
+
+          dualArticles = [a1!, a2!]; //
         });
       }
     } catch (e) {
-      debugPrint("Gagal memuat tayub: $e");
-    }
+      //
+      debugPrint("Gagal memuat tayub: $e"); //
+    } //
     setState(() {
-      isSearching = false;
-    });
+      //
+      isSearching = false; //
+    }); //
   }
 
   // Fungsi pembantu untuk mencari artikel di daftar offlineArticles
