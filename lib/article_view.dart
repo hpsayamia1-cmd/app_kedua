@@ -165,15 +165,7 @@ class _ArticleReaderState extends State<ArticleReader> {
         onLoad: (placementId) => debugPrint('Banner dimuat: $placementId'),
         onClick: (placementId) => debugPrint('Banner diklik: $placementId'),
         onFailed: (placementId, error, message) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Info Unity: $error - $message'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 4),
-              ),
-            );
-          }
+          debugPrint('Info Unity Gagal: $error - $message');
         },
       ),
     );

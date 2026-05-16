@@ -42,7 +42,7 @@ class _PuskarajaAppState extends State<PuskarajaApp> {
     }
     await UnityAds.init(
       gameId: unityGameId,
-      testMode: true, // Set ke false saat rilis
+      testMode: false, // iklan nyata, bukan test
       onComplete: () {
         debugPrint('semua siap!..');
       },
