@@ -107,50 +107,63 @@ class _ArticleReaderState extends State<ArticleReader> {
 
   Widget _buildSingleView(Article art) {
     var data = _parseContent(art.content);
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4.0,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-        child: Column(
-          children: [
-            _buildBannerAd(),
-            _buildNotasiImage(data['image']!),
-            if (data['lirik']!.isNotEmpty) _buildLirikBox(data['lirik']!),
-            const SizedBox(
-              height: 120,
-            ), // Beri jarak agar tidak tertutup tombol FAB
-          ],
+    return Column(
+      children: [
+        _buildBannerAd(),
+        Expanded(
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Column(
+                children: [
+                  _buildNotasiImage(data['image']!),
+                  if (data['lirik']!.isNotEmpty) _buildLirikBox(data['lirik']!),
+                  const SizedBox(
+                    height: 120,
+                  ), // Jarak aman dari tombol download mengambang
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildDualView() {
-    return ListView.builder(
-      itemCount: widget.articles?.length ?? 0,
-      itemBuilder: (context, index) {
-        var data = _parseContent(widget.articles![index].content);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                "Gending ${index + 1}: ${widget.articles![index].title}",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
-                ),
-              ),
-            ),
-            _buildBannerAd(),
-            _buildNotasiImage(data['image']!),
-            if (data['lirik']!.isNotEmpty) _buildLirikBox(data['lirik']!),
-            const Divider(height: 40, thickness: 2, color: Colors.red),
-          ],
-        );
-      },
+    return Column(
+      children: [
+        // 1. KITA TARUH DI SINI: Iklan anteng di atas, tidak ikut ter-scroll atau ke-recycle
+        _buildBannerAd(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: widget.articles?.length ?? 0,
+            itemBuilder: (context, index) {
+              var data = _parseContent(widget.articles![index].content);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      "Gending ${index + 1}: ${widget.articles![index].title}",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                  _buildNotasiImage(data['image']!),
+                  if (data['lirik']!.isNotEmpty) _buildLirikBox(data['lirik']!),
+                  const Divider(height: 40, thickness: 2, color: Colors.red),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -158,9 +171,11 @@ class _ArticleReaderState extends State<ArticleReader> {
     return Container(
       margin: const EdgeInsets.only(bottom: 15, top: 10),
       alignment: Alignment.center,
-      width: double.infinity, // WAJIB ADA: Biar iklannya di tengah pas
+      width: double.infinity,
       height: 50,
       child: UnityBannerAd(
+        key:
+            UniqueKey(), // WAJIB: Memaksa Flutter membuat instansiasi native baru tiap buka halaman
         placementId: 'Banner_Android',
         onLoad: (placementId) => debugPrint('Banner dimuat: $placementId'),
         onClick: (placementId) => debugPrint('Banner diklik: $placementId'),
