@@ -35,8 +35,6 @@ class ArticleReader extends StatefulWidget {
 
 class _ArticleReaderState extends State<ArticleReader> {
   late bool _localIsSaved;
-  bool _isAdsShowing = false;
-
   void _processDownload() async {
     if (_localIsSaved) return;
 
@@ -160,12 +158,23 @@ class _ArticleReaderState extends State<ArticleReader> {
     return Container(
       margin: const EdgeInsets.only(bottom: 15, top: 10),
       alignment: Alignment.center,
+      width: double.infinity, // WAJIB ADA: Biar iklannya di tengah pas
+      height: 50,
       child: UnityBannerAd(
-        placementId: 'Banner_Android', // Sesuai ID dari Dashboard Mas
+        placementId: 'Banner_Android',
         onLoad: (placementId) => debugPrint('Banner dimuat: $placementId'),
         onClick: (placementId) => debugPrint('Banner diklik: $placementId'),
-        onFailed: (placementId, error, message) =>
-            debugPrint('Banner gagal: $error $message'),
+        onFailed: (placementId, error, message) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Info Unity: $error - $message'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        },
       ),
     );
   }
